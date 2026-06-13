@@ -1,6 +1,6 @@
 # Lifter Protocol
 
-An adaptive powerlifting / powerbuilding training app — Juggernaut AI–style. The
+An adaptive powerlifting / powerbuilding training app. The
 program is **generated** from an onboarding questionnaire and **auto-regulates**
 week-to-week from logged RPE and recovery check-ins.
 

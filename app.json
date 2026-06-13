@@ -3,7 +3,8 @@
     "name": "Lifter Protocol",
     "slug": "lifter-protocol",
     "scheme": "lifterprotocol",
-    "version": "0.1.0",
+    "version": "1.0.0",
+    "runtimeVersion": { "policy": "appVersion" },
     "orientation": "portrait",
     "userInterfaceStyle": "dark",
     "newArchEnabled": true,
@@ -12,9 +13,13 @@
       "backgroundColor": "#0B0B0F"
     },
     "ios": {
-      "supportsTablet": true
+      "supportsTablet": true,
+      "bundleIdentifier": "com.orbitms.lifterprotocol",
+      "buildNumber": "1"
     },
     "android": {
+      "package": "com.orbitms.lifterprotocol",
+      "versionCode": 1,
       "adaptiveIcon": {
         "backgroundColor": "#0B0B0F"
       }

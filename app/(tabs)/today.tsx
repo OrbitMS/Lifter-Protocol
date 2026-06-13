@@ -1,33 +1,46 @@
-import { useEffect, useState } from 'react';
-import { ScrollView, StyleSheet, Text, View } from 'react-native';
+import { useRouter } from 'expo-router';
+import { useEffect, useMemo, useState } from 'react';
+import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { Subtitle, Title } from '@/components/ui';
 import { colors, radius, spacing } from '@/constants/theme';
-import { sessionCue } from '@/engine/coaching';
+import { localCue, sessionCue, type CoachContext } from '@/engine/coaching';
 import { getCoach } from '@/coaching';
+import { baseExerciseName } from '@/lib/metrics';
 import { useProfileStore } from '@/store/useProfileStore';
 
-// "Today" — shows the next session from the generated program + an LLM coaching cue.
+// "Today" — current session from the generated program + a macrocycle-aware coaching cue.
 export default function Today() {
+  const router = useRouter();
   const program = useProfileStore((s) => s.program);
   const profile = useProfileStore((s) => s.profile);
-  const [cue, setCue] = useState('');
 
-  const session = program?.blocks[0]?.weeks[0]?.sessions[0];
+  // current position in the macrocycle (block 0, week 0 until scheduling lands)
+  const blockIndex = 0;
+  const weekIndex = 0;
+  const block = program?.blocks[blockIndex];
+  const session = block?.weeks[weekIndex]?.sessions[0];
+
+  const ctx: CoachContext | null = useMemo(
+    () => (session ? { session, profile, program, blockIndex, weekIndex } : null),
+    [session, profile, program],
+  );
+
+  const [cue, setCue] = useState(() => (ctx ? localCue(ctx) : ''));
 
   useEffect(() => {
-    if (!session) return;
-    // Coaching layer: proxy → Claude when coachApiUrl is set, else offline stub.
-    // Falls back to a static cue if the request fails (offline, server down).
+    if (!ctx) return;
+    setCue(localCue(ctx)); // phase-aware fallback shown immediately
     let active = true;
-    sessionCue(getCoach(), session, profile)
-      .then((text) => active && setCue(text))
-      .catch(() => active && setCue('Brace, control the descent, drive through the full range.'));
+    // upgrade to the LLM coach when a backend is reachable; keep localCue otherwise
+    sessionCue(getCoach(), ctx)
+      .then((text) => active && text && setCue(text))
+      .catch(() => {});
     return () => {
       active = false;
     };
-  }, [session, profile]);
+  }, [ctx]);
 
-  if (!session) {
+  if (!session || !block) {
     return (
       <View style={{ flex: 1, backgroundColor: colors.bg, padding: spacing.lg }}>
         <Title>No program yet</Title>
@@ -40,7 +53,7 @@ export default function Today() {
     <ScrollView style={{ backgroundColor: colors.bg }} contentContainerStyle={{ padding: spacing.lg, gap: spacing.md }}>
       <Title>{session.label}</Title>
       <Subtitle>
-        {program?.type} · {program?.blocks[0].phase} · Week 1
+        {program?.type} · {block.phase} · week {weekIndex + 1} of {block.weeks.length}
       </Subtitle>
 
       {cue ? (
@@ -50,20 +63,32 @@ export default function Today() {
         </View>
       ) : null}
 
-      {session.exercises.map((ex, i) => (
-        <View key={i} style={styles.row}>
-          <View style={styles.exHead}>
-            <Text style={styles.exName}>{ex.name}</Text>
-            {ex.role && ex.role !== 'main' ? (
-              <Text style={styles.tag}>{ex.role}</Text>
-            ) : null}
-          </View>
-          <Text style={styles.exMeta}>
-            {ex.sets} × {ex.reps}
-            {ex.intensity.rpe ? ` @ RPE ${ex.intensity.rpe}` : ''}
-          </Text>
-        </View>
-      ))}
+      <Subtitle>Tap an exercise for instructions, video and to log your sets.</Subtitle>
+
+      {session.exercises.map((ex, i) => {
+        const target = `${ex.sets} × ${ex.reps}${ex.intensity.rpe ? ` @ RPE ${ex.intensity.rpe}` : ''}`;
+        return (
+          <Pressable
+            key={i}
+            style={styles.row}
+            onPress={() =>
+              router.push({
+                pathname: '/exercise/[name]',
+                params: { name: baseExerciseName(ex.name), target },
+              })
+            }
+          >
+            <View style={styles.exHead}>
+              <Text style={styles.exName}>{ex.name}</Text>
+              {ex.role && ex.role !== 'main' ? <Text style={styles.tag}>{ex.role}</Text> : null}
+            </View>
+            <View style={styles.exHead}>
+              <Text style={styles.exMeta}>{target}</Text>
+              <Text style={styles.chev}>›</Text>
+            </View>
+          </Pressable>
+        );
+      })}
     </ScrollView>
   );
 }
@@ -91,6 +116,7 @@ const styles = StyleSheet.create({
     paddingVertical: 2,
   },
   exMeta: { color: colors.textMuted, marginTop: 4 },
+  chev: { color: colors.textMuted, fontSize: 22, marginTop: 2 },
   cue: {
     backgroundColor: colors.accentSoft,
     borderRadius: radius.md,

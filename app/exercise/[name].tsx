@@ -1,0 +1,231 @@
+import { Stack, useLocalSearchParams } from 'expo-router';
+import { useState } from 'react';
+import { Linking, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Field, Label, PrimaryButton, Subtitle } from '@/components/ui';
+import { LineChart, type ChartPoint } from '@/components/LineChart';
+import { colors, radius, spacing } from '@/constants/theme';
+import {
+  PATTERNS,
+  getExerciseInfo,
+  photosUrl,
+  videoUrl,
+} from '@/constants/exerciseInfo';
+import {
+  entryBestE1RM,
+  useLogStore,
+  type LoggedSet,
+} from '@/store/useLogStore';
+
+export default function ExerciseDetail() {
+  const params = useLocalSearchParams<{ name: string; target?: string }>();
+  const name = typeof params.name === 'string' ? params.name : '';
+  const info = getExerciseInfo(name);
+  const meta = PATTERNS[info.pattern];
+
+  const entriesFor = useLogStore((s) => s.entriesFor);
+  const addEntry = useLogStore((s) => s.addEntry);
+  const removeEntry = useLogStore((s) => s.removeEntry);
+  const logs = useLogStore((s) => s.logs); // subscribe for re-render
+  const entries = entriesFor(info.name);
+  void logs;
+
+  // draft set inputs
+  const [weight, setWeight] = useState('');
+  const [reps, setReps] = useState('');
+  const [rpe, setRpe] = useState('');
+  const [draft, setDraft] = useState<LoggedSet[]>([]);
+
+  const addDraftSet = () => {
+    const w = Number(weight);
+    const r = Number(reps);
+    if (!w || !r) return;
+    setDraft((d) => [...d, { weight: w, reps: r, rpe: rpe ? Number(rpe) : undefined }]);
+    setWeight('');
+    setReps('');
+    setRpe('');
+  };
+
+  const saveSession = () => {
+    if (draft.length === 0) return;
+    addEntry(info.name, draft);
+    setDraft([]);
+  };
+
+  const chartData: ChartPoint[] = entries.map((e, i) => ({
+    x: i,
+    y: entryBestE1RM(e),
+    label: new Date(e.date).toLocaleDateString(undefined, { month: 'short', day: 'numeric' }),
+  }));
+
+  return (
+    <>
+      <Stack.Screen options={{ title: info.name, headerShown: true }} />
+      <ScrollView
+        style={{ backgroundColor: colors.bg }}
+        contentContainerStyle={{ padding: spacing.lg, gap: spacing.lg }}
+      >
+        {/* media banner */}
+        <View style={[styles.banner, { backgroundColor: meta.color + '22', borderColor: meta.color }]}>
+          <Text style={styles.bannerEmoji}>{meta.emoji}</Text>
+          <View style={{ flex: 1 }}>
+            <Text style={styles.bannerTitle}>{meta.label}</Text>
+            <Text style={styles.bannerSub}>{info.primaryMuscles.join(' · ')}{info.equipment ? ` · ${info.equipment}` : ''}</Text>
+          </View>
+        </View>
+
+        {params.target ? <Subtitle>Today’s target: {params.target}</Subtitle> : null}
+
+        <View style={{ flexDirection: 'row', gap: spacing.sm }}>
+          <Pressable style={styles.linkBtn} onPress={() => Linking.openURL(videoUrl(info.name))}>
+            <Text style={styles.linkText}>▶  Watch video</Text>
+          </Pressable>
+          <Pressable style={styles.linkBtn} onPress={() => Linking.openURL(photosUrl(info.name))}>
+            <Text style={styles.linkText}>🖼  Photos</Text>
+          </Pressable>
+        </View>
+
+        {/* how to */}
+        <View style={{ gap: spacing.xs }}>
+          <Text style={styles.section}>HOW TO PERFORM</Text>
+          {info.instructions.map((step, i) => (
+            <View key={i} style={styles.step}>
+              <Text style={styles.stepNum}>{i + 1}</Text>
+              <Text style={styles.stepText}>{step}</Text>
+            </View>
+          ))}
+        </View>
+
+        <View style={{ gap: spacing.xs }}>
+          <Text style={styles.section}>KEY CUES</Text>
+          {info.cues.map((c, i) => (
+            <Text key={i} style={styles.cue}>• {c}</Text>
+          ))}
+        </View>
+
+        {/* progress chart */}
+        {chartData.length > 0 && (
+          <View style={{ gap: spacing.xs }}>
+            <Text style={styles.section}>EST. 1RM OVER TIME</Text>
+            <View style={styles.card}>
+              <LineChart data={chartData} />
+            </View>
+          </View>
+        )}
+
+        {/* log a session */}
+        <View style={{ gap: spacing.sm }}>
+          <Text style={styles.section}>LOG THIS EXERCISE</Text>
+          <View style={{ flexDirection: 'row', gap: spacing.sm }}>
+            <View style={{ flex: 1 }}>
+              <Label>Weight (kg)</Label>
+              <Field keyboardType="decimal-pad" value={weight} onChangeText={setWeight} placeholder="100" />
+            </View>
+            <View style={{ flex: 1 }}>
+              <Label>Reps</Label>
+              <Field keyboardType="number-pad" value={reps} onChangeText={setReps} placeholder="5" />
+            </View>
+            <View style={{ flex: 1 }}>
+              <Label>RPE</Label>
+              <Field keyboardType="decimal-pad" value={rpe} onChangeText={setRpe} placeholder="8" />
+            </View>
+          </View>
+          <Pressable style={styles.addSet} onPress={addDraftSet}>
+            <Text style={styles.addSetText}>+ Add set</Text>
+          </Pressable>
+
+          {draft.map((s, i) => (
+            <Text key={i} style={styles.draftSet}>
+              Set {i + 1}: {s.weight}kg × {s.reps}{s.rpe ? ` @ RPE ${s.rpe}` : ''}
+            </Text>
+          ))}
+          {draft.length > 0 && <PrimaryButton label={`Save session (${draft.length} sets)`} onPress={saveSession} />}
+        </View>
+
+        {/* history */}
+        {entries.length > 0 && (
+          <View style={{ gap: spacing.xs }}>
+            <Text style={styles.section}>HISTORY</Text>
+            {[...entries].reverse().map((e) => (
+              <View key={e.id} style={styles.card}>
+                <View style={styles.histHead}>
+                  <Text style={styles.histDate}>{new Date(e.date).toLocaleDateString()}</Text>
+                  <Pressable onPress={() => removeEntry(info.name, e.id)}>
+                    <Text style={styles.del}>Delete</Text>
+                  </Pressable>
+                </View>
+                {e.sets.map((s, i) => (
+                  <Text key={i} style={styles.histSet}>
+                    {s.weight}kg × {s.reps}{s.rpe ? ` @ RPE ${s.rpe}` : ''}
+                  </Text>
+                ))}
+                <Text style={styles.histE1rm}>Est. 1RM: {entryBestE1RM(e)} kg</Text>
+              </View>
+            ))}
+          </View>
+        )}
+      </ScrollView>
+    </>
+  );
+}
+
+const styles = StyleSheet.create({
+  banner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.md,
+    borderRadius: radius.lg,
+    borderWidth: 1,
+    padding: spacing.md,
+  },
+  bannerEmoji: { fontSize: 40 },
+  bannerTitle: { color: colors.text, fontSize: 18, fontWeight: '700' },
+  bannerSub: { color: colors.textMuted, fontSize: 13, marginTop: 2 },
+  section: { color: colors.accent, fontSize: 12, fontWeight: '800', letterSpacing: 1 },
+  linkBtn: {
+    flex: 1,
+    backgroundColor: colors.surface,
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: radius.md,
+    paddingVertical: spacing.sm,
+    alignItems: 'center',
+  },
+  linkText: { color: colors.text, fontWeight: '600' },
+  step: { flexDirection: 'row', gap: spacing.sm, alignItems: 'flex-start' },
+  stepNum: {
+    color: colors.bg,
+    backgroundColor: colors.accent,
+    fontWeight: '800',
+    fontSize: 12,
+    width: 20,
+    height: 20,
+    borderRadius: 10,
+    textAlign: 'center',
+    lineHeight: 20,
+    overflow: 'hidden',
+  },
+  stepText: { color: colors.text, flex: 1, lineHeight: 21 },
+  cue: { color: colors.textMuted, lineHeight: 21 },
+  card: {
+    backgroundColor: colors.surface,
+    borderRadius: radius.md,
+    padding: spacing.md,
+    borderWidth: 1,
+    borderColor: colors.border,
+    gap: 2,
+  },
+  addSet: {
+    borderWidth: 1,
+    borderColor: colors.accent,
+    borderRadius: radius.md,
+    paddingVertical: spacing.sm,
+    alignItems: 'center',
+  },
+  addSetText: { color: colors.accent, fontWeight: '700' },
+  draftSet: { color: colors.text },
+  histHead: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 4 },
+  histDate: { color: colors.text, fontWeight: '700' },
+  del: { color: colors.textMuted, fontSize: 12 },
+  histSet: { color: colors.textMuted },
+  histE1rm: { color: colors.success, fontWeight: '700', marginTop: 4 },
+});

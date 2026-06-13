@@ -52,7 +52,12 @@ export default function Today() {
 
       {session.exercises.map((ex, i) => (
         <View key={i} style={styles.row}>
-          <Text style={styles.exName}>{ex.name}</Text>
+          <View style={styles.exHead}>
+            <Text style={styles.exName}>{ex.name}</Text>
+            {ex.role && ex.role !== 'main' ? (
+              <Text style={styles.tag}>{ex.role}</Text>
+            ) : null}
+          </View>
           <Text style={styles.exMeta}>
             {ex.sets} × {ex.reps}
             {ex.intensity.rpe ? ` @ RPE ${ex.intensity.rpe}` : ''}
@@ -71,7 +76,20 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: colors.border,
   },
-  exName: { color: colors.text, fontSize: 16, fontWeight: '600' },
+  exHead: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', gap: spacing.sm },
+  exName: { color: colors.text, fontSize: 16, fontWeight: '600', flexShrink: 1 },
+  tag: {
+    color: colors.textMuted,
+    fontSize: 10,
+    fontWeight: '700',
+    letterSpacing: 0.5,
+    textTransform: 'uppercase',
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: radius.sm,
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+  },
   exMeta: { color: colors.textMuted, marginTop: 4 },
   cue: {
     backgroundColor: colors.accentSoft,

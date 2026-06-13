@@ -32,10 +32,15 @@ export interface Intensity {
   rpe?: number; // 6–10
 }
 
+/** What slot an exercise fills in a session, for display grouping & ordering. */
+export type ExerciseRole = 'main' | 'variation' | 'secondary' | 'accessory' | 'core';
+
 export interface ExercisePrescription {
   name: string;
   /** main lift this slots under, for progression tracking */
   category: 'squat' | 'bench' | 'deadlift' | 'accessory';
+  /** session slot — defaults to 'accessory' for legacy data */
+  role?: ExerciseRole;
   sets: number;
   reps: number;
   intensity: Intensity;

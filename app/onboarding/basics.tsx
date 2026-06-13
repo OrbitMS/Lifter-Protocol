@@ -19,6 +19,7 @@ export default function Basics() {
   const router = useRouter();
   const setBasics = useProfileStore((s) => s.setBasics);
 
+  const [name, setName] = useState('');
   const [gender, setGender] = useState<Gender>('male');
   const [age, setAge] = useState('');
   const [height, setHeight] = useState('');
@@ -28,6 +29,7 @@ export default function Basics() {
 
   const next = () => {
     setBasics({
+      name: name.trim() || undefined,
       gender,
       age: Number(age),
       heightCm: Number(height),
@@ -42,6 +44,9 @@ export default function Basics() {
       <ProgressBar step={1} total={6} />
       <Title>About you</Title>
       <Subtitle>The basics let us calibrate volume and bodyweight targets.</Subtitle>
+
+      <Label>Profile name (optional)</Label>
+      <Field value={name} onChangeText={setName} placeholder="e.g. Marcel" autoCapitalize="words" />
 
       <Label>Gender</Label>
       <View style={{ flexDirection: 'row', gap: spacing.sm }}>

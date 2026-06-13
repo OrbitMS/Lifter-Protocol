@@ -61,6 +61,48 @@ describe('program generation', () => {
     const lowSets = low.blocks[0].weeks[0].sessions[0].exercises[0].sets;
     expect(lowSets).toBeLessThan(highSets);
   });
+
+  it('builds a full session (main + support + accessories), not just the main lift', () => {
+    const program = generateProgram(history, goodRecovery, config);
+    const session = program.blocks[0].weeks[0].sessions[0];
+    // main lift + variation/secondary + accessories + core
+    expect(session.exercises.length).toBeGreaterThanOrEqual(4);
+    expect(session.exercises[0].role).toBe('main');
+    const roles = session.exercises.map((e) => e.role);
+    expect(roles).toContain('accessory');
+    // non-deload sessions carry a variation or a secondary compound
+    expect(roles.some((r) => r === 'variation' || r === 'secondary')).toBe(true);
+  });
+
+  it('honours focus areas in accessory selection', () => {
+    const week = generateProgram(history, goodRecovery, {
+      ...config,
+      type: 'powerbuilding',
+      bbToPlRatio: 70,
+      trainingDays: ['mon', 'tue', 'thu'],
+      daysPerWeek: 3,
+      upperFocus: ['arms'],
+    }).blocks[0].weeks[0];
+    // day index 1 is the bench (upper) session
+    const benchDay = week.sessions[1];
+    expect(benchDay.exercises[0].category).toBe('bench');
+    const names = benchDay.exercises.map((e) => e.name).join(' ');
+    // an arms-focused upper day should program arm work
+    expect(/Curl|Triceps/i.test(names)).toBe(true);
+  });
+
+  it('powerbuilding programs carry more accessories than powerlifting', () => {
+    const countAcc = (type: 'powerlifting' | 'powerbuilding') => {
+      const p = generateProgram(history, goodRecovery, {
+        ...config,
+        type,
+        bbToPlRatio: type === 'powerbuilding' ? 70 : 10,
+      });
+      const s = p.blocks[0].weeks[0].sessions[0];
+      return s.exercises.filter((e) => e.role === 'accessory').length;
+    };
+    expect(countAcc('powerbuilding')).toBeGreaterThan(countAcc('powerlifting'));
+  });
 });
 
 describe('auto-regulation', () => {

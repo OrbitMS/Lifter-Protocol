@@ -8,7 +8,7 @@ import type {
   TrainingWeek,
   Weekday,
 } from '@/types/program';
-import { pickAccessories } from './accessories';
+import { selectSupportWork } from './exercises';
 import { PHASE_TEMPLATES, TRAINING_MAX_RATIO } from './periodization';
 import {
   bucketRecovery,
@@ -57,9 +57,6 @@ export function generateProgram(
     deadlift: history.maxes.deadlift * TRAINING_MAX_RATIO,
   };
 
-  // how many accessory movements a session carries scales with the BB ratio
-  const accessorySlots = Math.max(1, Math.round((config.bbToPlRatio / 100) * 4));
-
   const phases = PHASE_TEMPLATES[config.type];
   const days = config.trainingDays.slice(0, config.daysPerWeek);
 
@@ -71,12 +68,13 @@ export function generateProgram(
       const weekBump = (w - 1) * 0.02;
       const sessions: Session[] = days.map((day, di) => {
         const mainLift = MAIN_LIFTS[di % MAIN_LIFTS.length];
-        const region: 'upper' | 'lower' = mainLift === 'bench' ? 'upper' : 'lower';
 
         const topPercent = Math.min(0.95, spec.mainPercent + weekBump);
         const mainEx: ExercisePrescription = {
-          name: LIFT_LABEL[mainLift],
+          // concrete top-set load attached as a hint via name suffix
+          name: `${LIFT_LABEL[mainLift]} — ${round(tm[mainLift] * topPercent)}kg`,
           category: mainLift,
+          role: 'main',
           sets: Math.max(1, 3 + setMod),
           reps: spec.mainReps,
           intensity: {
@@ -84,22 +82,25 @@ export function generateProgram(
             rpe: Math.min(rpeCeiling, 9),
           },
         };
-        // attach concrete top-set load as a hint via name suffix
-        mainEx.name = `${LIFT_LABEL[mainLift]} — ${round(tm[mainLift] * topPercent)}kg`;
 
-        const accessories = pickAccessories(
-          region,
-          config.upperFocus,
-          config.lowerFocus,
-          accessorySlots,
-          Math.max(1, spec.accessorySets + setMod),
-          spec.accessoryReps,
-        ).map((a) => ({ ...a, intensity: { rpe: Math.min(rpeCeiling, 8) } }));
+        const support = selectSupportWork({
+          lift: mainLift,
+          phase: spec.phase,
+          programType: config.type,
+          bbToPlRatio: config.bbToPlRatio,
+          upperFocus: config.upperFocus,
+          lowerFocus: config.lowerFocus,
+          setMod,
+          rpeCeiling,
+          week: w,
+          phaseSpec: spec,
+          trainingMax: tm[mainLift],
+        });
 
         return {
           day: day as Weekday,
           label: `${LIFT_LABEL[mainLift]} Focus`,
-          exercises: [mainEx, ...accessories],
+          exercises: [mainEx, ...support],
         };
       });
 

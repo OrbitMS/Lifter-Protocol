@@ -10,3 +10,6 @@ expo-env.d.ts
 ios/
 android/
 coverage/
+release-assets/
+*.apk
+*.aab

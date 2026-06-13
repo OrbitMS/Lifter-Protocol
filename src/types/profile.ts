@@ -5,6 +5,8 @@ export type Gender = 'male' | 'female' | 'other';
 
 /** Step 1 — Basics */
 export interface Basics {
+  /** optional display name for the profile */
+  name?: string;
   gender: Gender;
   age: number;
   /** stored in cm regardless of display units */

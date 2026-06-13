@@ -60,7 +60,7 @@ export const useProfileStore = create<ProfileState>()(
         set({ profile: {}, config: {}, program: undefined, onboardingComplete: false }),
     }),
     {
-      name: 'powerbuilder-profile',
+      name: 'lifter-protocol-profile',
       storage: createJSONStorage(() => AsyncStorage),
     },
   ),

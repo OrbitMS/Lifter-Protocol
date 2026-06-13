@@ -1,4 +1,4 @@
-# Powerbuilder AI
+# Lifter Protocol
 
 An adaptive powerlifting / powerbuilding training app — Juggernaut AI–style. The
 program is **generated** from an onboarding questionnaire and **auto-regulates**

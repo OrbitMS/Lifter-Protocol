@@ -15,21 +15,22 @@ export interface ExerciseEntry {
   sets: LoggedSet[];
 }
 
+type ProfileLogs = Record<string, ExerciseEntry[]>; // exercise base name -> entries
+
 interface LogState {
-  /** keyed by base exercise name */
-  logs: Record<string, ExerciseEntry[]>;
-  addEntry: (exerciseName: string, sets: LoggedSet[], date?: string) => void;
-  removeEntry: (exerciseName: string, id: string) => void;
-  entriesFor: (exerciseName: string) => ExerciseEntry[];
-  trackedNames: () => string[];
+  /** profileId -> exercise name -> entries */
+  logs: Record<string, ProfileLogs>;
+  addEntry: (profileId: string, exerciseName: string, sets: LoggedSet[], date?: string) => void;
+  removeEntry: (profileId: string, exerciseName: string, id: string) => void;
+  entriesFor: (profileId: string, exerciseName: string) => ExerciseEntry[];
+  logsForProfile: (profileId: string) => ProfileLogs;
+  clearProfile: (profileId: string) => void;
 }
 
-/** Best estimated-1RM in an entry (across its sets). */
 export function entryBestE1RM(entry: ExerciseEntry): number {
   return bestE1RM(entry.sets);
 }
 
-/** Heaviest single set (weight) in an entry. */
 export function entryTopWeight(entry: ExerciseEntry): number {
   return entry.sets.reduce((m, s) => Math.max(m, s.weight), 0);
 }
@@ -39,38 +40,55 @@ export const useLogStore = create<LogState>()(
     (set, get) => ({
       logs: {},
 
-      addEntry: (exerciseName, sets, date) => {
+      addEntry: (profileId, exerciseName, sets, date) => {
+        if (!profileId) return;
         const key = baseExerciseName(exerciseName);
+        const clean = sets.filter((s) => s.weight > 0 && s.reps > 0);
+        if (clean.length === 0) return;
         const entry: ExerciseEntry = {
           id: `${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
           date: date ?? new Date().toISOString(),
-          sets: sets.filter((s) => s.weight > 0 && s.reps > 0),
+          sets: clean,
         };
-        if (entry.sets.length === 0) return;
         set((state) => {
-          const prev = state.logs[key] ?? [];
-          const next = [...prev, entry].sort((a, b) => a.date.localeCompare(b.date));
-          return { logs: { ...state.logs, [key]: next } };
+          const pl = state.logs[profileId] ?? {};
+          const next = [...(pl[key] ?? []), entry].sort((a, b) => a.date.localeCompare(b.date));
+          return { logs: { ...state.logs, [profileId]: { ...pl, [key]: next } } };
         });
       },
 
-      removeEntry: (exerciseName, id) => {
+      removeEntry: (profileId, exerciseName, id) => {
         const key = baseExerciseName(exerciseName);
-        set((state) => ({
-          logs: { ...state.logs, [key]: (state.logs[key] ?? []).filter((e) => e.id !== id) },
-        }));
+        set((state) => {
+          const pl = state.logs[profileId];
+          if (!pl) return {} as Partial<LogState>;
+          return {
+            logs: { ...state.logs, [profileId]: { ...pl, [key]: (pl[key] ?? []).filter((e) => e.id !== id) } },
+          };
+        });
       },
 
-      entriesFor: (exerciseName) => get().logs[baseExerciseName(exerciseName)] ?? [],
+      entriesFor: (profileId, exerciseName) =>
+        get().logs[profileId]?.[baseExerciseName(exerciseName)] ?? [],
 
-      trackedNames: () =>
-        Object.keys(get().logs)
-          .filter((k) => (get().logs[k]?.length ?? 0) > 0)
-          .sort(),
+      logsForProfile: (profileId) => get().logs[profileId] ?? {},
+
+      clearProfile: (profileId) =>
+        set((state) => {
+          const next = { ...state.logs };
+          delete next[profileId];
+          return { logs: next };
+        }),
     }),
     {
       name: 'lifter-protocol-logs',
+      version: 2,
       storage: createJSONStorage(() => AsyncStorage),
+      // v1 stored logs as a flat name->entries map (pre-multi-profile, unreleased).
+      migrate: (persisted: unknown, version: number) => {
+        if (version < 2) return { logs: {} };
+        return persisted as { logs: Record<string, ProfileLogs> };
+      },
     },
   ),
 );

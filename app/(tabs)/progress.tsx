@@ -4,13 +4,15 @@ import { Subtitle, Title } from '@/components/ui';
 import { LineChart, type ChartPoint } from '@/components/LineChart';
 import { colors, radius, spacing } from '@/constants/theme';
 import { entryBestE1RM, useLogStore } from '@/store/useLogStore';
-import { useProfileStore } from '@/store/useProfileStore';
+import { useActiveProfile } from '@/store/useProfileStore';
 
 // Progress — visualizes logged numbers (est. 1RM trend per tracked exercise).
 export default function Progress() {
   const router = useRouter();
-  const maxes = useProfileStore((s) => s.profile.history?.maxes);
-  const logs = useLogStore((s) => s.logs);
+  const active = useActiveProfile();
+  const maxes = active?.profile.history?.maxes;
+  const allLogs = useLogStore((s) => s.logs);
+  const logs = active ? allLogs[active.id] ?? {} : {};
 
   const tracked = Object.keys(logs)
     .filter((k) => (logs[k]?.length ?? 0) > 0)

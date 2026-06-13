@@ -1,11 +1,11 @@
 import { ScrollView, StyleSheet, Text, View } from 'react-native';
 import { Subtitle, Title } from '@/components/ui';
 import { colors, radius, spacing } from '@/constants/theme';
-import { useProfileStore } from '@/store/useProfileStore';
+import { useActiveProfile } from '@/store/useProfileStore';
 
 // Program overview — the macrocycle: blocks → weeks → session count.
 export default function ProgramOverview() {
-  const program = useProfileStore((s) => s.program);
+  const program = useActiveProfile()?.program;
 
   if (!program) {
     return (

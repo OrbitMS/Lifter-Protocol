@@ -6,6 +6,8 @@ import type {
   UpperFocus,
 } from '@/types/program';
 import type { PhaseSpec } from './periodization';
+import { baseExerciseName } from '@/lib/metrics';
+import { getExerciseInfo } from '@/constants/exerciseInfo';
 
 export type MainLiftKey = 'squat' | 'bench' | 'deadlift';
 
@@ -197,4 +199,28 @@ export function selectSupportWork(opts: SupportWorkOptions): ExercisePrescriptio
   }
 
   return out;
+}
+
+/** Every exercise the engine can program — used to offer substitutions. */
+export const ALL_EXERCISES: string[] = Array.from(
+  new Set<string>([
+    'Squat',
+    'Bench Press',
+    'Deadlift',
+    ...Object.values(VARIATIONS).flat(),
+    ...Object.values(SECONDARY).flat(),
+    ...Object.values(UPPER_POOL).flat(),
+    ...Object.values(LOWER_POOL).flat(),
+    ...CORE_POOL,
+  ]),
+).sort();
+
+/**
+ * Alternatives for an exercise the athlete doesn't like — same movement pattern,
+ * so the swap keeps the session's intent intact.
+ */
+export function alternativesFor(name: string): string[] {
+  const base = baseExerciseName(name);
+  const pattern = getExerciseInfo(base).pattern;
+  return ALL_EXERCISES.filter((e) => e !== base && getExerciseInfo(e).pattern === pattern);
 }

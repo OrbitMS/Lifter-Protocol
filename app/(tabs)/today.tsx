@@ -1,46 +1,101 @@
 import { useRouter } from 'expo-router';
-import { useEffect, useMemo, useState } from 'react';
-import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { PanResponder, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { Subtitle, Title } from '@/components/ui';
 import { colors, radius, spacing } from '@/constants/theme';
 import { localCue, sessionCue, type CoachContext } from '@/engine/coaching';
 import { getCoach } from '@/coaching';
 import { baseExerciseName } from '@/lib/metrics';
-import { useProfileStore } from '@/store/useProfileStore';
+import { useActiveProfile } from '@/store/useProfileStore';
+import type { PhaseName, Session } from '@/types/program';
 
-// "Today" — current session from the generated program + a macrocycle-aware coaching cue.
+interface Day {
+  blockIndex: number;
+  weekIndex: number;
+  phase: PhaseName;
+  weekOfBlock: number;
+  weeksInBlock: number;
+  session: Session;
+}
+
+const SWAPPABLE = new Set(['accessory', 'secondary', 'core']);
+
 export default function Today() {
   const router = useRouter();
-  const program = useProfileStore((s) => s.program);
-  const profile = useProfileStore((s) => s.profile);
+  const active = useActiveProfile();
+  const program = active?.program;
+  const profile = active?.profile ?? {};
+  const overrides = active?.overrides ?? {};
 
-  // current position in the macrocycle (block 0, week 0 until scheduling lands)
-  const blockIndex = 0;
-  const weekIndex = 0;
-  const block = program?.blocks[blockIndex];
-  const session = block?.weeks[weekIndex]?.sessions[0];
+  // flatten the whole macrocycle into an ordered list of training days
+  const days = useMemo<Day[]>(() => {
+    if (!program) return [];
+    const out: Day[] = [];
+    program.blocks.forEach((b, bi) =>
+      b.weeks.forEach((w, wi) =>
+        w.sessions.forEach((session) =>
+          out.push({
+            blockIndex: bi,
+            weekIndex: wi,
+            phase: b.phase,
+            weekOfBlock: wi + 1,
+            weeksInBlock: b.weeks.length,
+            session,
+          }),
+        ),
+      ),
+    );
+    return out;
+  }, [program]);
+
+  const [index, setIndex] = useState(0);
+  useEffect(() => setIndex(0), [active?.id]); // reset when switching profiles
+  const total = days.length;
+  const safeIndex = Math.min(index, Math.max(0, total - 1));
+  const day = days[safeIndex];
+
+  const totalRef = useRef(0);
+  totalRef.current = total;
+  const go = useCallback(
+    (d: number) => setIndex((i) => Math.max(0, Math.min((totalRef.current || 1) - 1, i + d))),
+    [],
+  );
+  const goRef = useRef(go);
+  goRef.current = go;
+
+  // horizontal swipe → prev/next (vertical scroll still works)
+  const pan = useRef(
+    PanResponder.create({
+      onMoveShouldSetPanResponder: (_e, g) => Math.abs(g.dx) > 24 && Math.abs(g.dx) > Math.abs(g.dy),
+      onPanResponderRelease: (_e, g) => {
+        if (g.dx <= -50) goRef.current(1);
+        else if (g.dx >= 50) goRef.current(-1);
+      },
+    }),
+  ).current;
 
   const ctx: CoachContext | null = useMemo(
-    () => (session ? { session, profile, program, blockIndex, weekIndex } : null),
-    [session, profile, program],
+    () =>
+      day
+        ? { session: day.session, profile, program, blockIndex: day.blockIndex, weekIndex: day.weekIndex }
+        : null,
+    [day, profile, program],
   );
 
-  const [cue, setCue] = useState(() => (ctx ? localCue(ctx) : ''));
-
+  const [cue, setCue] = useState('');
   useEffect(() => {
     if (!ctx) return;
-    setCue(localCue(ctx)); // phase-aware fallback shown immediately
-    let active = true;
-    // upgrade to the LLM coach when a backend is reachable; keep localCue otherwise
+    setCue(localCue(ctx));
+    let alive = true;
     sessionCue(getCoach(), ctx)
-      .then((text) => active && text && setCue(text))
+      .then((t) => alive && t && setCue(t))
       .catch(() => {});
     return () => {
-      active = false;
+      alive = false;
     };
   }, [ctx]);
 
-  if (!session || !block) {
+  if (!program || !day) {
     return (
       <View style={{ flex: 1, backgroundColor: colors.bg, padding: spacing.lg }}>
         <Title>No program yet</Title>
@@ -50,50 +105,109 @@ export default function Today() {
   }
 
   return (
-    <ScrollView style={{ backgroundColor: colors.bg }} contentContainerStyle={{ padding: spacing.lg, gap: spacing.md }}>
-      <Title>{session.label}</Title>
-      <Subtitle>
-        {program?.type} · {block.phase} · week {weekIndex + 1} of {block.weeks.length}
-      </Subtitle>
-
-      {cue ? (
-        <View style={styles.cue}>
-          <Text style={styles.cueLabel}>COACH</Text>
-          <Text style={styles.cueText}>{cue}</Text>
-        </View>
-      ) : null}
-
-      <Subtitle>Tap an exercise for instructions, video and to log your sets.</Subtitle>
-
-      {session.exercises.map((ex, i) => {
-        const target = `${ex.sets} × ${ex.reps}${ex.intensity.rpe ? ` @ RPE ${ex.intensity.rpe}` : ''}`;
-        return (
+    <View style={{ flex: 1, backgroundColor: colors.bg }} {...pan.panHandlers}>
+      <ScrollView contentContainerStyle={{ padding: spacing.lg, gap: spacing.md }}>
+        {/* day navigator */}
+        <View style={styles.nav}>
           <Pressable
-            key={i}
-            style={styles.row}
-            onPress={() =>
-              router.push({
-                pathname: '/exercise/[name]',
-                params: { name: baseExerciseName(ex.name), target },
-              })
-            }
+            onPress={() => go(-1)}
+            disabled={safeIndex === 0}
+            style={[styles.navBtn, safeIndex === 0 && styles.navBtnOff]}
           >
-            <View style={styles.exHead}>
-              <Text style={styles.exName}>{ex.name}</Text>
-              {ex.role && ex.role !== 'main' ? <Text style={styles.tag}>{ex.role}</Text> : null}
-            </View>
-            <View style={styles.exHead}>
-              <Text style={styles.exMeta}>{target}</Text>
-              <Text style={styles.chev}>›</Text>
-            </View>
+            <Text style={styles.navBtnText}>‹</Text>
           </Pressable>
-        );
-      })}
-    </ScrollView>
+          <View style={{ alignItems: 'center' }}>
+            <Text style={styles.dayCount}>Day {safeIndex + 1} of {total}</Text>
+            <Text style={styles.dayPhase}>
+              {day.phase} · week {day.weekOfBlock}/{day.weeksInBlock}
+            </Text>
+          </View>
+          <Pressable
+            onPress={() => go(1)}
+            disabled={safeIndex === total - 1}
+            style={[styles.navBtn, safeIndex === total - 1 && styles.navBtnOff]}
+          >
+            <Text style={styles.navBtnText}>›</Text>
+          </Pressable>
+        </View>
+
+        <Title>{day.session.label}</Title>
+        <Subtitle>{program.type} · swipe or use ‹ › to browse your weeks</Subtitle>
+
+        {cue ? (
+          <View style={styles.cue}>
+            <Text style={styles.cueLabel}>COACH</Text>
+            <Text style={styles.cueText}>{cue}</Text>
+          </View>
+        ) : null}
+
+        {day.session.exercises.map((ex, i) => {
+          const base = baseExerciseName(ex.name);
+          const swappable = ex.role ? SWAPPABLE.has(ex.role) : false;
+          const replaced = swappable ? overrides[base] : undefined;
+          const display = swappable ? replaced ?? base : ex.name;
+          const navName = swappable ? replaced ?? base : base;
+          const slot = swappable ? base : undefined;
+          const target = `${ex.sets} × ${ex.reps}${ex.intensity.rpe ? ` @ RPE ${ex.intensity.rpe}` : ''}`;
+          return (
+            <Pressable
+              key={i}
+              style={styles.row}
+              onPress={() =>
+                router.push({
+                  pathname: '/exercise/[name]',
+                  params: {
+                    name: navName,
+                    target,
+                    ...(slot
+                      ? {
+                          slot,
+                          // other exercises already in this session — excluded from swaps
+                          peers: day.session.exercises
+                            .map((e) => baseExerciseName(e.name))
+                            .filter((n) => n !== base)
+                            .join('|'),
+                        }
+                      : {}),
+                  },
+                })
+              }
+            >
+              <View style={styles.exHead}>
+                <Text style={styles.exName}>{display}</Text>
+                {ex.role && ex.role !== 'main' ? <Text style={styles.tag}>{ex.role}</Text> : null}
+              </View>
+              <View style={styles.exHead}>
+                <Text style={styles.exMeta}>
+                  {target}
+                  {replaced ? '  · swapped' : ''}
+                </Text>
+                <Text style={styles.chev}>›</Text>
+              </View>
+            </Pressable>
+          );
+        })}
+      </ScrollView>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
+  nav: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
+  navBtn: {
+    width: 44,
+    height: 44,
+    borderRadius: radius.md,
+    backgroundColor: colors.surface,
+    borderWidth: 1,
+    borderColor: colors.border,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  navBtnOff: { opacity: 0.35 },
+  navBtnText: { color: colors.text, fontSize: 24, lineHeight: 26 },
+  dayCount: { color: colors.text, fontWeight: '700' },
+  dayPhase: { color: colors.textMuted, fontSize: 12, textTransform: 'capitalize', marginTop: 2 },
   row: {
     backgroundColor: colors.surface,
     borderRadius: radius.md,

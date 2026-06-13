@@ -1,5 +1,6 @@
 import { baseExerciseName, bestE1RM, estimate1RM } from '../metrics';
 import { getExerciseInfo } from '@/constants/exerciseInfo';
+import { alternativesFor } from '@/engine/exercises';
 
 describe('metrics', () => {
   it('estimate1RM returns the weight at 1 rep', () => {
@@ -30,6 +31,16 @@ describe('exercise info', () => {
     expect(getExerciseInfo('EZ-Bar Curl').pattern).toBe('isolation');
     expect(getExerciseInfo('Seated Cable Row').pattern).toBe('horizontal-pull');
     expect(getExerciseInfo('Hanging Leg Raise').pattern).toBe('core');
+  });
+});
+
+describe('exercise substitution', () => {
+  it('offers same-pattern alternatives, excluding the exercise itself', () => {
+    const alts = alternativesFor('Leg Press');
+    expect(alts.length).toBeGreaterThan(0);
+    expect(alts).not.toContain('Leg Press');
+    // all alternatives share the squat pattern
+    alts.forEach((a) => expect(getExerciseInfo(a).pattern).toBe(getExerciseInfo('Leg Press').pattern));
   });
 });
 

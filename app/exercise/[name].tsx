@@ -4,36 +4,40 @@ import { Linking, Pressable, ScrollView, StyleSheet, Text, View } from 'react-na
 import { Field, Label, PrimaryButton, Subtitle } from '@/components/ui';
 import { LineChart, type ChartPoint } from '@/components/LineChart';
 import { colors, radius, spacing } from '@/constants/theme';
-import {
-  PATTERNS,
-  getExerciseInfo,
-  photosUrl,
-  videoUrl,
-} from '@/constants/exerciseInfo';
-import {
-  entryBestE1RM,
-  useLogStore,
-  type LoggedSet,
-} from '@/store/useLogStore';
+import { PATTERNS, getExerciseInfo, photosUrl, videoUrl } from '@/constants/exerciseInfo';
+import { alternativesFor } from '@/engine/exercises';
+import { baseExerciseName } from '@/lib/metrics';
+import { entryBestE1RM, useLogStore, type LoggedSet } from '@/store/useLogStore';
+import { useActiveProfile, useProfileStore } from '@/store/useProfileStore';
 
 export default function ExerciseDetail() {
-  const params = useLocalSearchParams<{ name: string; target?: string }>();
-  const name = typeof params.name === 'string' ? params.name : '';
-  const info = getExerciseInfo(name);
-  const meta = PATTERNS[info.pattern];
+  const params = useLocalSearchParams<{ name: string; target?: string; slot?: string; peers?: string }>();
+  const slot = typeof params.slot === 'string' ? params.slot : undefined;
+  const peers = typeof params.peers === 'string' ? params.peers.split('|').filter(Boolean) : [];
 
-  const entriesFor = useLogStore((s) => s.entriesFor);
+  const activeId = useProfileStore((s) => s.activeId) ?? '';
+  const setOverride = useProfileStore((s) => s.setOverride);
+  const clearOverride = useProfileStore((s) => s.clearOverride);
+  const overrides = useActiveProfile()?.overrides ?? {};
+  const allLogs = useLogStore((s) => s.logs);
   const addEntry = useLogStore((s) => s.addEntry);
   const removeEntry = useLogStore((s) => s.removeEntry);
-  const logs = useLogStore((s) => s.logs); // subscribe for re-render
-  const entries = entriesFor(info.name);
-  void logs;
 
-  // draft set inputs
+  // the exercise currently shown (respects a saved swap for this slot)
+  const [currentName, setCurrentName] = useState(
+    () => (slot && overrides[slot]) || (typeof params.name === 'string' ? params.name : ''),
+  );
+  const info = getExerciseInfo(currentName);
+  const meta = PATTERNS[info.pattern];
+  const isSwapped = !!(slot && overrides[slot]);
+
+  const entries = activeId ? allLogs[activeId]?.[baseExerciseName(currentName)] ?? [] : [];
+
   const [weight, setWeight] = useState('');
   const [reps, setReps] = useState('');
   const [rpe, setRpe] = useState('');
   const [draft, setDraft] = useState<LoggedSet[]>([]);
+  const [showSwap, setShowSwap] = useState(false);
 
   const addDraftSet = () => {
     const w = Number(weight);
@@ -44,11 +48,21 @@ export default function ExerciseDetail() {
     setReps('');
     setRpe('');
   };
-
   const saveSession = () => {
-    if (draft.length === 0) return;
-    addEntry(info.name, draft);
+    if (draft.length === 0 || !activeId) return;
+    addEntry(activeId, info.name, draft);
     setDraft([]);
+  };
+
+  const swapTo = (choice: string) => {
+    if (slot) setOverride(slot, choice);
+    setCurrentName(choice);
+    setShowSwap(false);
+  };
+  const resetSwap = () => {
+    if (slot) clearOverride(slot);
+    setCurrentName(slot ?? currentName);
+    setShowSwap(false);
   };
 
   const chartData: ChartPoint[] = entries.map((e, i) => ({
@@ -60,16 +74,14 @@ export default function ExerciseDetail() {
   return (
     <>
       <Stack.Screen options={{ title: info.name, headerShown: true }} />
-      <ScrollView
-        style={{ backgroundColor: colors.bg }}
-        contentContainerStyle={{ padding: spacing.lg, gap: spacing.lg }}
-      >
-        {/* media banner */}
+      <ScrollView style={{ backgroundColor: colors.bg }} contentContainerStyle={{ padding: spacing.lg, gap: spacing.lg }}>
         <View style={[styles.banner, { backgroundColor: meta.color + '22', borderColor: meta.color }]}>
           <Text style={styles.bannerEmoji}>{meta.emoji}</Text>
           <View style={{ flex: 1 }}>
             <Text style={styles.bannerTitle}>{meta.label}</Text>
-            <Text style={styles.bannerSub}>{info.primaryMuscles.join(' · ')}{info.equipment ? ` · ${info.equipment}` : ''}</Text>
+            <Text style={styles.bannerSub}>
+              {info.primaryMuscles.join(' · ')}{info.equipment ? ` · ${info.equipment}` : ''}
+            </Text>
           </View>
         </View>
 
@@ -84,7 +96,37 @@ export default function ExerciseDetail() {
           </Pressable>
         </View>
 
-        {/* how to */}
+        {/* swap exercise */}
+        {slot ? (
+          <View style={{ gap: spacing.sm }}>
+            <Pressable style={styles.swapBtn} onPress={() => setShowSwap((v) => !v)}>
+              <Text style={styles.swapBtnText}>
+                {showSwap ? 'Close' : isSwapped ? `Swapped from ${slot} — change` : 'Don’t like it? Swap exercise'}
+              </Text>
+            </Pressable>
+            {showSwap && (
+              <View style={styles.card}>
+                <Text style={styles.swapHint}>Same movement pattern — keeps your session’s intent:</Text>
+                {alternativesFor(slot)
+                  .filter((alt) => alt === currentName || !peers.includes(alt))
+                  .map((alt) => (
+                  <Pressable key={alt} style={styles.altRow} onPress={() => swapTo(alt)}>
+                    <Text style={[styles.altName, alt === currentName && { color: colors.accent }]}>
+                      {alt}
+                    </Text>
+                    {alt === currentName ? <Text style={styles.altCur}>current</Text> : null}
+                  </Pressable>
+                ))}
+                {isSwapped && (
+                  <Pressable style={styles.altRow} onPress={resetSwap}>
+                    <Text style={[styles.altName, { color: colors.textMuted }]}>↺ Reset to {slot}</Text>
+                  </Pressable>
+                )}
+              </View>
+            )}
+          </View>
+        ) : null}
+
         <View style={{ gap: spacing.xs }}>
           <Text style={styles.section}>HOW TO PERFORM</Text>
           {info.instructions.map((step, i) => (
@@ -102,7 +144,6 @@ export default function ExerciseDetail() {
           ))}
         </View>
 
-        {/* progress chart */}
         {chartData.length > 0 && (
           <View style={{ gap: spacing.xs }}>
             <Text style={styles.section}>EST. 1RM OVER TIME</Text>
@@ -112,7 +153,6 @@ export default function ExerciseDetail() {
           </View>
         )}
 
-        {/* log a session */}
         <View style={{ gap: spacing.sm }}>
           <Text style={styles.section}>LOG THIS EXERCISE</Text>
           <View style={{ flexDirection: 'row', gap: spacing.sm }}>
@@ -132,7 +172,6 @@ export default function ExerciseDetail() {
           <Pressable style={styles.addSet} onPress={addDraftSet}>
             <Text style={styles.addSetText}>+ Add set</Text>
           </Pressable>
-
           {draft.map((s, i) => (
             <Text key={i} style={styles.draftSet}>
               Set {i + 1}: {s.weight}kg × {s.reps}{s.rpe ? ` @ RPE ${s.rpe}` : ''}
@@ -141,7 +180,6 @@ export default function ExerciseDetail() {
           {draft.length > 0 && <PrimaryButton label={`Save session (${draft.length} sets)`} onPress={saveSession} />}
         </View>
 
-        {/* history */}
         {entries.length > 0 && (
           <View style={{ gap: spacing.xs }}>
             <Text style={styles.section}>HISTORY</Text>
@@ -149,7 +187,7 @@ export default function ExerciseDetail() {
               <View key={e.id} style={styles.card}>
                 <View style={styles.histHead}>
                   <Text style={styles.histDate}>{new Date(e.date).toLocaleDateString()}</Text>
-                  <Pressable onPress={() => removeEntry(info.name, e.id)}>
+                  <Pressable onPress={() => removeEntry(activeId, info.name, e.id)}>
                     <Text style={styles.del}>Delete</Text>
                   </Pressable>
                 </View>
@@ -191,6 +229,25 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   linkText: { color: colors.text, fontWeight: '600' },
+  swapBtn: {
+    borderWidth: 1,
+    borderColor: colors.accent,
+    borderRadius: radius.md,
+    paddingVertical: spacing.sm,
+    alignItems: 'center',
+  },
+  swapBtnText: { color: colors.accent, fontWeight: '700' },
+  swapHint: { color: colors.textMuted, fontSize: 13, marginBottom: spacing.xs },
+  altRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingVertical: spacing.sm,
+    borderTopWidth: 1,
+    borderTopColor: colors.border,
+  },
+  altName: { color: colors.text, fontSize: 15 },
+  altCur: { color: colors.accent, fontSize: 11, fontWeight: '700' },
   step: { flexDirection: 'row', gap: spacing.sm, alignItems: 'flex-start' },
   stepNum: {
     color: colors.bg,

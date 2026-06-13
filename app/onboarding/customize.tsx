@@ -18,7 +18,7 @@ function toggle<T>(arr: T[], v: T): T[] {
 // Step 6 of 6 — Customization, then build the program.
 export default function Customize() {
   const router = useRouter();
-  const config = useProfileStore((s) => s.config);
+  const config = useProfileStore((s) => s.draft.config);
   const setConfig = useProfileStore((s) => s.setConfig);
   const buildProgram = useProfileStore((s) => s.buildProgram);
 

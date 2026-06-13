@@ -11,13 +11,26 @@
       "resizeMode": "contain",
       "backgroundColor": "#0B0B0F"
     },
-    "ios": { "supportsTablet": true },
-    "android": {
-      "adaptiveIcon": { "backgroundColor": "#0B0B0F" }
+    "ios": {
+      "supportsTablet": true
     },
-    "web": { "bundler": "metro", "output": "single" },
-    "plugins": ["expo-router"],
-    "experiments": { "typedRoutes": true },
+    "android": {
+      "adaptiveIcon": {
+        "backgroundColor": "#0B0B0F"
+      }
+    },
+    "web": {
+      "bundler": "metro",
+      "output": "single"
+    },
+    "plugins": [
+      "expo-router",
+      "expo-asset",
+      "expo-font"
+    ],
+    "experiments": {
+      "typedRoutes": true
+    },
     "extra": {
       "coachApiUrl": "http://localhost:8787"
     }

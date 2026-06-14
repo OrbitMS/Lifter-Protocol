@@ -48,7 +48,7 @@
       "expo-font",
       "expo-sqlite",
       [
-        "react-native-vision-camera",
+        "./plugins/withVisionCamera",
         {
           "cameraPermissionText": "Lifter Protocol uses the camera to analyse your technique in real time.",
           "enableMicrophonePermission": false

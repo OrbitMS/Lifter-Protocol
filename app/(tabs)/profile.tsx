@@ -99,6 +99,10 @@ export default function ProfileTab() {
             <Text style={styles.toolText}>Edit profile</Text>
           </Pressable>
         ) : null}
+        <Pressable style={styles.toolBtn} onPress={() => router.push('/nutrition')}>
+          <MaterialCommunityIcons name="food-apple" size={18} color={c.text} />
+          <Text style={styles.toolText}>Nutrition</Text>
+        </Pressable>
         <Pressable style={styles.toolBtn} onPress={() => router.push('/settings')}>
           <MaterialCommunityIcons name="cog" size={18} color={c.text} />
           <Text style={styles.toolText}>Settings</Text>

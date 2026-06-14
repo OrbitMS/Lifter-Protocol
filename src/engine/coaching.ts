@@ -15,8 +15,39 @@ import { baseExerciseName } from '@/lib/metrics';
  * accumulation week. See localCue() for the offline-deterministic version.
  */
 
+export interface ChatMessage {
+  role: 'user' | 'assistant';
+  content: string;
+}
+
 export interface CoachingClient {
+  /** one-shot completion (cues, weekly feedback) */
   complete(system: string, user: string): Promise<string>;
+  /** multi-turn conversation (the "ask your coach" chat) */
+  chat(system: string, messages: ChatMessage[]): Promise<string>;
+}
+
+const CHAT_SYSTEM = `You are an expert strength & conditioning coach embedded in a powerlifting/powerbuilding app, in conversation with the athlete.
+Use their profile, training phase and recent logged performance (provided below) to give specific, grounded answers — e.g. explain why a lift may be stalling and what to adjust in effort, technique, recovery or nutrition.
+You do NOT prescribe exact weights, sets or reps — the program engine owns those numbers. You may discuss trends, RPE/effort, fatigue, technique, recovery and nutrition.
+Be concise and practical: at most 2–4 short paragraphs, plain language, reference their actual numbers when relevant.`;
+
+/** Builds the system prompt for the conversational coach from athlete context. */
+export function chatSystemPrompt(args: {
+  profileLine: string;
+  cycleLine?: string;
+  trainingSummary?: string;
+}): string {
+  return [
+    CHAT_SYSTEM,
+    `\nATHLETE: ${args.profileLine || 'unknown'}.`,
+    args.cycleLine ? `\n${args.cycleLine}` : '',
+    args.trainingSummary
+      ? `\nRECENT TRAINING (estimated 1RM trend per lift):\n${args.trainingSummary}`
+      : '\nThe athlete has not logged any sets yet.',
+  ]
+    .filter(Boolean)
+    .join('\n');
 }
 
 const SYSTEM_PROMPT = `You are an expert strength & conditioning coach embedded in a powerlifting/powerbuilding app.
@@ -130,9 +161,28 @@ export function localCue(ctx: CoachContext): string {
   }
 }
 
+/** One-line athlete summary for prompts (profile + lifts + goal). */
+export function athleteSummary(profile: UserProfile, programType?: string): string {
+  const b = profile.basics;
+  const m = profile.history?.maxes;
+  return [
+    b ? `${b.age}y ${b.gender}, ${b.weightKg}kg` : null,
+    profile.history?.yearsTraining != null ? `${profile.history.yearsTraining}y training` : null,
+    m ? `1RMs S/B/D ${m.squat}/${m.bench}/${m.deadlift}kg` : null,
+    profile.recovery?.recoveryBucket ? `${profile.recovery.recoveryBucket} recovery` : null,
+    profile.nutrition?.dietGoal ? `goal: ${profile.nutrition.dietGoal} weight` : null,
+    programType ? `program: ${programType}` : null,
+  ]
+    .filter(Boolean)
+    .join(', ');
+}
+
 /** Offline fallback client (used when no coach backend URL is configured). */
 export const stubCoach: CoachingClient = {
   async complete(_system, _user) {
     return 'Brace hard, control the descent, and drive through the full range. You’ve got this.';
+  },
+  async chat(_system, _messages) {
+    return "I can't reach the AI coach right now (offline). In general, a stall usually traces to one of: not enough recovery (sleep/stress), creeping fatigue, protein/calories below target, or technique breaking down under load. Connect a coach backend in Settings for answers tailored to your logged numbers.";
   },
 };

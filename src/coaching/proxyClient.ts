@@ -1,5 +1,5 @@
 import Constants from 'expo-constants';
-import type { CoachingClient } from '@/engine/coaching';
+import type { ChatMessage, CoachingClient } from '@/engine/coaching';
 
 /**
  * RECOMMENDED client for the mobile app.
@@ -16,18 +16,21 @@ export function createProxyCoach(baseUrl?: string): CoachingClient {
     (Constants.expoConfig?.extra?.coachApiUrl as string | undefined) ??
     'http://localhost:8787';
 
+  async function post(path: string, body: unknown): Promise<string> {
+    const res = await fetch(`${url}${path}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    });
+    if (!res.ok) {
+      throw new Error(`Coach proxy error ${res.status}`);
+    }
+    const data = (await res.json()) as { text: string };
+    return data.text;
+  }
+
   return {
-    async complete(system, user) {
-      const res = await fetch(`${url}/coach`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ system, user }),
-      });
-      if (!res.ok) {
-        throw new Error(`Coach proxy error ${res.status}`);
-      }
-      const data = (await res.json()) as { text: string };
-      return data.text;
-    },
+    complete: (system, user) => post('/coach', { system, user }),
+    chat: (system: string, messages: ChatMessage[]) => post('/chat', { system, messages }),
   };
 }

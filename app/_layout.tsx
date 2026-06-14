@@ -5,10 +5,22 @@ import { useEffect } from 'react';
 import { LogBox } from 'react-native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { useTheme } from '@/lib/useTheme';
+import { initDB } from '@/lib/db';
+import { useLogStore } from '@/store/useLogStore';
+
+// Open the SQLite database and create tables synchronously at module load.
+initDB();
 
 // Silence a known upstream deprecation emitted by react-native-web / navigation
 // internals (not our code) so it doesn't drown out real warnings.
 LogBox.ignoreLogs(['props.pointerEvents is deprecated']);
+
+/** Hydrate the log store from SQLite once on mount (includes AsyncStorage migration). */
+function useDBInit() {
+  useEffect(() => {
+    useLogStore.getState().init();
+  }, []);
+}
 
 /** Check for an over-the-air update on launch (production builds only). */
 function useOtaUpdates() {
@@ -29,6 +41,7 @@ function useOtaUpdates() {
 }
 
 export default function RootLayout() {
+  useDBInit();
   useOtaUpdates();
   const { palette: c, isDark } = useTheme();
   return (

@@ -23,7 +23,10 @@
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.orbitms.lifterprotocol",
-      "buildNumber": "6"
+      "buildNumber": "6",
+      "infoPlist": {
+        "ITSAppUsesNonExemptEncryption": false
+      }
     },
     "android": {
       "package": "com.orbitms.lifterprotocol",
@@ -41,7 +44,8 @@
     "plugins": [
       "expo-router",
       "expo-asset",
-      "expo-font"
+      "expo-font",
+      "expo-sqlite"
     ],
     "experiments": {
       "typedRoutes": true

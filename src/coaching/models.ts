@@ -8,3 +8,7 @@ export const SUMMARY_MODEL = 'claude-opus-4-8';
 
 // Cues/feedback are <60 words; keep the output ceiling tight.
 export const MAX_TOKENS = 256;
+
+// Conversational coach (Q&A) — answers run longer than cues, so allow more room.
+export const CHAT_MODEL = 'claude-opus-4-8';
+export const CHAT_MAX_TOKENS = 700;

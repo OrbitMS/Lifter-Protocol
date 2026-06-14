@@ -1,6 +1,14 @@
 import Anthropic from '@anthropic-ai/sdk';
 import type { CoachingClient } from '@/engine/coaching';
-import { CUE_MODEL, MAX_TOKENS } from './models';
+import { CHAT_MAX_TOKENS, CHAT_MODEL, CUE_MODEL, MAX_TOKENS } from './models';
+
+function textOf(response: Anthropic.Message): string {
+  return response.content
+    .filter((b): b is Anthropic.TextBlock => b.type === 'text')
+    .map((b) => b.text)
+    .join('')
+    .trim();
+}
 
 /**
  * Direct Anthropic SDK client. Use this SERVER-SIDE (see server/index.ts) — or
@@ -30,13 +38,17 @@ export function createAnthropicCoach(
         system,
         messages: [{ role: 'user', content: user }],
       });
+      return textOf(response);
+    },
 
-      // content is a discriminated union; collect the text blocks.
-      return response.content
-        .filter((b): b is Anthropic.TextBlock => b.type === 'text')
-        .map((b) => b.text)
-        .join('')
-        .trim();
+    async chat(system, messages) {
+      const response = await client.messages.create({
+        model: CHAT_MODEL,
+        max_tokens: CHAT_MAX_TOKENS,
+        system,
+        messages: messages.map((m) => ({ role: m.role, content: m.content })),
+      });
+      return textOf(response);
     },
   };
 }

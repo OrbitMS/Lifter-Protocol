@@ -129,7 +129,12 @@ export default function Today() {
 
         {cue ? (
           <View style={styles.cue}>
-            <Text style={styles.cueLabel}>COACH</Text>
+            <View style={styles.cueTitleRow}>
+              <Text style={styles.cueLabel}>COACH</Text>
+              <Pressable onPress={() => router.push('/coach')} style={styles.chatLink}>
+                <Text style={styles.chatLinkText}>Chat ›</Text>
+              </Pressable>
+            </View>
             <Text style={styles.cueText}>{cue}</Text>
           </View>
         ) : null}
@@ -239,6 +244,9 @@ const makeStyles = (c: Palette) => StyleSheet.create({
     borderWidth: 1,
     borderColor: c.accent,
   },
+  cueTitleRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
   cueLabel: { color: c.accent, fontSize: 11, fontWeight: '800', letterSpacing: 1 },
+  chatLink: { paddingVertical: 2, paddingHorizontal: 4 },
+  chatLinkText: { color: c.accent, fontSize: 13, fontWeight: '700' },
   cueText: { color: c.text, marginTop: 4, lineHeight: 20 },
 });

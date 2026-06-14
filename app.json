@@ -47,6 +47,14 @@
       "expo-asset",
       "expo-font",
       "expo-sqlite",
+      [
+        "expo-build-properties",
+        {
+          "android": {
+            "kotlinVersion": "2.1.0"
+          }
+        }
+      ],
       "./plugins/withAndroidBuildFix",
       [
         "./plugins/withVisionCamera",

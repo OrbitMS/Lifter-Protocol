@@ -1,7 +1,7 @@
 import { useRouter } from 'expo-router';
 import { useState } from 'react';
 import { ScrollView } from 'react-native';
-import { Label, OptionCard, PrimaryButton, ProgressBar, Subtitle, Title } from '@/components/ui';
+import { InfoLabel, OptionCard, PrimaryButton, ProgressBar, Subtitle, Title } from '@/components/ui';
 import { spacing } from '@/constants/theme';
 import { useProfileStore } from '@/store/useProfileStore';
 import type { DietGoal } from '@/types/profile';
@@ -10,9 +10,10 @@ import type { DietGoal } from '@/types/profile';
 export default function Nutrition() {
   const router = useRouter();
   const setNutrition = useProfileStore((s) => s.setNutrition);
+  const n = useProfileStore((s) => s.draft.profile.nutrition);
 
-  const [tracks, setTracks] = useState<boolean | null>(null);
-  const [goal, setGoal] = useState<DietGoal | null>(null);
+  const [tracks, setTracks] = useState<boolean | null>(n?.tracksMacros ?? null);
+  const [goal, setGoal] = useState<DietGoal | null>(n?.dietGoal ?? null);
 
   const valid = tracks !== null && goal !== null;
 
@@ -28,11 +29,15 @@ export default function Nutrition() {
       <Title>Nutrition & goals</Title>
       <Subtitle>We’ll set macro targets and tune recovery expectations to your goal.</Subtitle>
 
-      <Label>Do you track your nutrition?</Label>
+      <InfoLabel help="Just tells us your habits — it doesn’t change your training plan.">
+        Do you track your nutrition?
+      </InfoLabel>
       <OptionCard title="I track my macros" selected={tracks === true} onPress={() => setTracks(true)} />
       <OptionCard title="I don’t pay attention" selected={tracks === false} onPress={() => setTracks(false)} />
 
-      <Label>Diet goal</Label>
+      <InfoLabel help="Gaining supports more accessory volume; losing trims it to protect recovery; maintain stays neutral.">
+        Diet goal
+      </InfoLabel>
       <OptionCard title="Lose weight" selected={goal === 'lose'} onPress={() => setGoal('lose')} />
       <OptionCard title="Maintain" selected={goal === 'maintain'} onPress={() => setGoal('maintain')} />
       <OptionCard title="Gain weight" selected={goal === 'gain'} onPress={() => setGoal('gain')} />

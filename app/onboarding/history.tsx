@@ -3,7 +3,7 @@ import { useState } from 'react';
 import { ScrollView } from 'react-native';
 import {
   Field,
-  Label,
+  InfoLabel,
   OptionCard,
   PrimaryButton,
   ProgressBar,
@@ -18,12 +18,13 @@ import type { FrequencyPreference } from '@/types/profile';
 export default function History() {
   const router = useRouter();
   const setHistory = useProfileStore((s) => s.setHistory);
+  const h = useProfileStore((s) => s.draft.profile.history);
 
-  const [years, setYears] = useState('');
-  const [freq, setFreq] = useState<FrequencyPreference>('high');
-  const [squat, setSquat] = useState('');
-  const [bench, setBench] = useState('');
-  const [deadlift, setDeadlift] = useState('');
+  const [years, setYears] = useState(h?.yearsTraining ? String(h.yearsTraining) : '');
+  const [freq, setFreq] = useState<FrequencyPreference>(h?.frequencyPreference ?? 'high');
+  const [squat, setSquat] = useState(h?.maxes.squat ? String(h.maxes.squat) : '');
+  const [bench, setBench] = useState(h?.maxes.bench ? String(h.maxes.bench) : '');
+  const [deadlift, setDeadlift] = useState(h?.maxes.deadlift ? String(h.maxes.deadlift) : '');
 
   const valid = years && squat && bench && deadlift;
 
@@ -42,10 +43,14 @@ export default function History() {
       <Title>Training history</Title>
       <Subtitle>How long you’ve trained and how often you like to.</Subtitle>
 
-      <Label>Years training</Label>
+      <InfoLabel help="Sets your experience level: beginners get less volume and an RPE-8 effort cap; advanced lifters get more volume, an extra main-lift set, and can push to RPE 10.">
+        Years training
+      </InfoLabel>
       <Field keyboardType="decimal-pad" value={years} onChangeText={setYears} placeholder="3" />
 
-      <Label>Frequency preference</Label>
+      <InfoLabel help="High frequency spreads accessories over more days (fewer per session). Low frequency packs more work into each session.">
+        Frequency preference
+      </InfoLabel>
       <OptionCard
         title="Low frequency"
         description="Fewer, longer sessions per week."
@@ -59,11 +64,17 @@ export default function History() {
         onPress={() => setFreq('high')}
       />
 
-      <Label>Estimated 1RM — Squat (kg)</Label>
+      <InfoLabel help="Your training loads are built from this — we program against ~90% of your 1RM so sessions start submaximal with room to grow.">
+        Estimated 1RM — Squat (kg)
+      </InfoLabel>
       <Field keyboardType="decimal-pad" value={squat} onChangeText={setSquat} placeholder="180" />
-      <Label>Estimated 1RM — Bench (kg)</Label>
+      <InfoLabel help="Your bench loads come from this 1RM (programmed at ~90% of it).">
+        Estimated 1RM — Bench (kg)
+      </InfoLabel>
       <Field keyboardType="decimal-pad" value={bench} onChangeText={setBench} placeholder="120" />
-      <Label>Estimated 1RM — Deadlift (kg)</Label>
+      <InfoLabel help="Your deadlift loads come from this 1RM (programmed at ~90% of it).">
+        Estimated 1RM — Deadlift (kg)
+      </InfoLabel>
       <Field keyboardType="decimal-pad" value={deadlift} onChangeText={setDeadlift} placeholder="220" />
 
       <PrimaryButton label="Continue" onPress={next} disabled={!valid} />

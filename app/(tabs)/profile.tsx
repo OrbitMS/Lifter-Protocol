@@ -4,11 +4,13 @@ import { Alert, Platform, Pressable, ScrollView, StyleSheet, Text, View } from '
 import { PrimaryButton, Subtitle, Title } from '@/components/ui';
 import { colors, radius, spacing } from '@/constants/theme';
 import { getProgramMeta } from '@/constants/programs';
+import { fmtWeight } from '@/lib/units';
 import {
   profileName,
   useActiveProfile,
   useProfileStore,
 } from '@/store/useProfileStore';
+import { useSettingsStore } from '@/store/useSettingsStore';
 
 function Section({ title, children }: { title: string; children: ReactNode }) {
   return (
@@ -36,10 +38,17 @@ export default function ProfileTab() {
   const switchProfile = useProfileStore((s) => s.switchProfile);
   const deleteProfile = useProfileStore((s) => s.deleteProfile);
   const startNewProfile = useProfileStore((s) => s.startNewProfile);
+  const editActiveProfile = useProfileStore((s) => s.editActiveProfile);
   const active = useActiveProfile();
+  const units = useSettingsStore((s) => s.units);
 
   const newProfile = () => {
     startNewProfile();
+    router.push('/onboarding/basics');
+  };
+
+  const editProfile = () => {
+    editActiveProfile();
     router.push('/onboarding/basics');
   };
 
@@ -75,6 +84,17 @@ export default function ProfileTab() {
       <View>
         <Title>{p ? profileName(p, profiles.findIndex((x) => x.id === p.id)) : 'Profiles'}</Title>
         <Subtitle>Switch between athletes or add a new profile — each keeps its own plan and logs.</Subtitle>
+      </View>
+
+      <View style={{ flexDirection: 'row', gap: spacing.sm }}>
+        {p ? (
+          <Pressable style={styles.toolBtn} onPress={editProfile}>
+            <Text style={styles.toolText}>Edit profile</Text>
+          </Pressable>
+        ) : null}
+        <Pressable style={styles.toolBtn} onPress={() => router.push('/settings')}>
+          <Text style={styles.toolText}>Settings</Text>
+        </Pressable>
       </View>
 
       {/* profile switcher */}
@@ -115,15 +135,15 @@ export default function ProfileTab() {
             <Row k="Gender" v={cap(basics?.gender)} />
             <Row k="Age" v={basics?.age ? `${basics.age}` : '—'} />
             <Row k="Height" v={basics?.heightCm ? `${basics.heightCm} cm` : '—'} />
-            <Row k="Bodyweight" v={basics?.weightKg ? `${basics.weightKg} kg` : '—'} />
+            <Row k="Bodyweight" v={basics?.weightKg ? fmtWeight(basics.weightKg, units) : '—'} />
           </Section>
 
           <Section title="TRAINING">
             <Row k="Experience" v={history ? `${history.yearsTraining} yrs` : '—'} />
             <Row k="Frequency pref" v={cap(history?.frequencyPreference)} />
-            <Row k="Squat 1RM" v={history ? `${history.maxes.squat} kg` : '—'} />
-            <Row k="Bench 1RM" v={history ? `${history.maxes.bench} kg` : '—'} />
-            <Row k="Deadlift 1RM" v={history ? `${history.maxes.deadlift} kg` : '—'} />
+            <Row k="Squat 1RM" v={history ? fmtWeight(history.maxes.squat, units) : '—'} />
+            <Row k="Bench 1RM" v={history ? fmtWeight(history.maxes.bench, units) : '—'} />
+            <Row k="Deadlift 1RM" v={history ? fmtWeight(history.maxes.deadlift, units) : '—'} />
           </Section>
 
           <Section title="RECOVERY">
@@ -164,6 +184,16 @@ export default function ProfileTab() {
 
 const styles = StyleSheet.create({
   section: { color: colors.accent, fontSize: 12, fontWeight: '800', letterSpacing: 1 },
+  toolBtn: {
+    flex: 1,
+    backgroundColor: colors.surface,
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: radius.md,
+    paddingVertical: spacing.sm,
+    alignItems: 'center',
+  },
+  toolText: { color: colors.text, fontWeight: '700' },
   card: {
     backgroundColor: colors.surface,
     borderRadius: radius.md,

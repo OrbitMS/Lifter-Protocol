@@ -1,6 +1,6 @@
 import { computeRecoveryIndex, bucketRecovery } from '../recovery';
 import { generateProgram } from '../generator';
-import { adjustFromSession } from '../autoregulation';
+import { adjustFromSession, adjustForLift } from '../autoregulation';
 import type { RecoveryProfile, TrainingHistory, UserProfile, DietGoal } from '@/types/profile';
 import type { ProgramConfig, ProgramType, SessionLog } from '@/types/program';
 
@@ -130,5 +130,10 @@ describe('auto-regulation', () => {
       exercises: [{ exerciseName: 'Squat', sets: [{ weight: 140, reps: 5, rpe: 7, completed: true }] }],
     };
     expect(adjustFromSession(log, 9).loadMultiplier).toBeGreaterThan(1);
+  });
+
+  it('adjustForLift bumps an easy lift and backs off a grindy one', () => {
+    expect(adjustForLift([{ weight: 140, reps: 5, rpe: 7, completed: true }], 9).loadMultiplier).toBeGreaterThan(1);
+    expect(adjustForLift([{ weight: 160, reps: 5, rpe: 10, completed: true }], 8).loadMultiplier).toBeLessThan(1);
   });
 });

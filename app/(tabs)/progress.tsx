@@ -5,12 +5,15 @@ import { LineChart, type ChartPoint } from '@/components/LineChart';
 import { colors, radius, spacing } from '@/constants/theme';
 import { entryBestE1RM, useLogStore } from '@/store/useLogStore';
 import { useActiveProfile } from '@/store/useProfileStore';
+import { useSettingsStore } from '@/store/useSettingsStore';
+import { kgToDisplay } from '@/lib/units';
 
 // Progress — visualizes logged numbers (est. 1RM trend per tracked exercise).
 export default function Progress() {
   const router = useRouter();
   const active = useActiveProfile();
   const maxes = active?.profile.history?.maxes;
+  const units = useSettingsStore((s) => s.units);
   const allLogs = useLogStore((s) => s.logs);
   const logs = active ? allLogs[active.id] ?? {} : {};
 
@@ -32,8 +35,8 @@ export default function Progress() {
             {(['squat', 'bench', 'deadlift'] as const).map((lift) => (
               <View key={lift} style={styles.stat}>
                 <Text style={styles.statLift}>{lift}</Text>
-                <Text style={styles.statVal}>{maxes[lift]}</Text>
-                <Text style={styles.statUnit}>kg</Text>
+                <Text style={styles.statVal}>{kgToDisplay(maxes[lift], units)}</Text>
+                <Text style={styles.statUnit}>{units}</Text>
               </View>
             ))}
           </View>
@@ -54,7 +57,7 @@ export default function Progress() {
             const entries = logs[name];
             const data: ChartPoint[] = entries.map((e, i) => ({
               x: i,
-              y: entryBestE1RM(e),
+              y: kgToDisplay(entryBestE1RM(e), units),
               label: new Date(e.date).toLocaleDateString(undefined, { month: 'short', day: 'numeric' }),
             }));
             const best = Math.max(...data.map((d) => d.y));
@@ -69,7 +72,7 @@ export default function Progress() {
                 <View style={styles.cardHead}>
                   <Text style={styles.cardTitle}>{name}</Text>
                   <Text style={styles.best}>
-                    {best} kg
+                    {best} {units}
                     {delta > 0 ? <Text style={styles.up}>  ▲{delta}</Text> : null}
                   </Text>
                 </View>

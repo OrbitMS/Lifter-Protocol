@@ -1,7 +1,7 @@
 import { useRouter } from 'expo-router';
 import { useState } from 'react';
 import { ScrollView } from 'react-native';
-import { OptionCard, PrimaryButton, ProgressBar, Subtitle, Title } from '@/components/ui';
+import { InfoLabel, OptionCard, PrimaryButton, ProgressBar, Subtitle, Title } from '@/components/ui';
 import { spacing } from '@/constants/theme';
 import { PROGRAMS, getProgramMeta } from '@/constants/programs';
 import { useProfileStore } from '@/store/useProfileStore';
@@ -11,7 +11,9 @@ import type { ProgramType } from '@/types/program';
 export default function ProgramSelect() {
   const router = useRouter();
   const setConfig = useProfileStore((s) => s.setConfig);
-  const [type, setType] = useState<ProgramType | null>(null);
+  const [type, setType] = useState<ProgramType | null>(
+    useProfileStore.getState().draft.config.type ?? null,
+  );
 
   const next = () => {
     if (!type) return;
@@ -24,6 +26,10 @@ export default function ProgramSelect() {
       <ProgressBar step={4} total={6} />
       <Title>Choose your program</Title>
       <Subtitle>All programs run 3–6×/week. Pick the emphasis that fits your goals.</Subtitle>
+
+      <InfoLabel help="Powerlifting peaks your squat/bench/deadlift with few accessories. Powerbuilding adds lots of accessory volume for size. Power Combo alternates strength and size blocks.">
+        How this shapes your plan
+      </InfoLabel>
 
       {PROGRAMS.map((p) => (
         <OptionCard

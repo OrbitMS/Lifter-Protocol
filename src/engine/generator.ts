@@ -9,7 +9,7 @@ import type {
   Weekday,
 } from '@/types/program';
 import { selectSupportWork } from './exercises';
-import { getPhases, TRAINING_MAX_RATIO } from './periodization';
+import { getPhases } from './periodization';
 import {
   bucketRecovery,
   computeRecoveryIndex,
@@ -25,10 +25,6 @@ const LIFT_LABEL: Record<MainLift, string> = {
   bench: 'Bench Press',
   deadlift: 'Deadlift',
 };
-
-function round(n: number, step = 2.5): number {
-  return Math.round(n / step) * step;
-}
 
 /**
  * Build a complete program from the full profile + config. Every onboarding
@@ -69,12 +65,6 @@ export function generateProgram(profile: UserProfile, config: ProgramConfig): Pr
   const accessoryMod = freqVol + dietVol + expVol + ageVol;
   const competing = !!config.competing;
 
-  const tm: Record<MainLift, number> = {
-    squat: history.maxes.squat * TRAINING_MAX_RATIO,
-    bench: history.maxes.bench * TRAINING_MAX_RATIO,
-    deadlift: history.maxes.deadlift * TRAINING_MAX_RATIO,
-  };
-
   const phases = getPhases(config.type, competing);
   const days = config.trainingDays.slice(0, config.daysPerWeek);
 
@@ -88,7 +78,7 @@ export function generateProgram(profile: UserProfile, config: ProgramConfig): Pr
 
         const topPercent = Math.min(0.95, spec.mainPercent + weekBump);
         const mainEx: ExercisePrescription = {
-          name: `${LIFT_LABEL[mainLift]} — ${round(tm[mainLift] * topPercent)}kg`,
+          name: LIFT_LABEL[mainLift],
           category: mainLift,
           role: 'main',
           sets: Math.max(1, 3 + setMod + (expVol > 0 ? 1 : 0)),
@@ -107,7 +97,6 @@ export function generateProgram(profile: UserProfile, config: ProgramConfig): Pr
           rpeCeiling,
           week: w,
           phaseSpec: spec,
-          trainingMax: tm[mainLift],
           accessoryMod,
           competing,
         });

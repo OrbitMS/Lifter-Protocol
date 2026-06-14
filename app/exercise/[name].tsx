@@ -7,8 +7,11 @@ import { colors, radius, spacing } from '@/constants/theme';
 import { PATTERNS, getExerciseInfo, photosUrl, videoUrl } from '@/constants/exerciseInfo';
 import { alternativesFor } from '@/engine/exercises';
 import { baseExerciseName } from '@/lib/metrics';
+import { roundLoad } from '@/lib/load';
+import { displayToKg, fmtWeight, kgToDisplay } from '@/lib/units';
 import { entryBestE1RM, useLogStore, type LoggedSet } from '@/store/useLogStore';
 import { useActiveProfile, useProfileStore } from '@/store/useProfileStore';
+import { useSettingsStore } from '@/store/useSettingsStore';
 
 export default function ExerciseDetail() {
   const params = useLocalSearchParams<{ name: string; target?: string; slot?: string; peers?: string }>();
@@ -22,6 +25,7 @@ export default function ExerciseDetail() {
   const allLogs = useLogStore((s) => s.logs);
   const addEntry = useLogStore((s) => s.addEntry);
   const removeEntry = useLogStore((s) => s.removeEntry);
+  const units = useSettingsStore((s) => s.units);
 
   // the exercise currently shown (respects a saved swap for this slot)
   const [currentName, setCurrentName] = useState(
@@ -43,7 +47,7 @@ export default function ExerciseDetail() {
     const w = Number(weight);
     const r = Number(reps);
     if (!w || !r) return;
-    setDraft((d) => [...d, { weight: w, reps: r, rpe: rpe ? Number(rpe) : undefined }]);
+    setDraft((d) => [...d, { weight: roundLoad(displayToKg(w, units)), reps: r, rpe: rpe ? Number(rpe) : undefined }]);
     setWeight('');
     setReps('');
     setRpe('');
@@ -67,7 +71,7 @@ export default function ExerciseDetail() {
 
   const chartData: ChartPoint[] = entries.map((e, i) => ({
     x: i,
-    y: entryBestE1RM(e),
+    y: kgToDisplay(entryBestE1RM(e), units),
     label: new Date(e.date).toLocaleDateString(undefined, { month: 'short', day: 'numeric' }),
   }));
 
@@ -157,7 +161,7 @@ export default function ExerciseDetail() {
           <Text style={styles.section}>LOG THIS EXERCISE</Text>
           <View style={{ flexDirection: 'row', gap: spacing.sm }}>
             <View style={{ flex: 1 }}>
-              <Label>Weight (kg)</Label>
+              <Label>Weight ({units})</Label>
               <Field keyboardType="decimal-pad" value={weight} onChangeText={setWeight} placeholder="100" />
             </View>
             <View style={{ flex: 1 }}>
@@ -174,7 +178,7 @@ export default function ExerciseDetail() {
           </Pressable>
           {draft.map((s, i) => (
             <Text key={i} style={styles.draftSet}>
-              Set {i + 1}: {s.weight}kg × {s.reps}{s.rpe ? ` @ RPE ${s.rpe}` : ''}
+              Set {i + 1}: {fmtWeight(s.weight, units)} × {s.reps}{s.rpe ? ` @ RPE ${s.rpe}` : ''}
             </Text>
           ))}
           {draft.length > 0 && <PrimaryButton label={`Save session (${draft.length} sets)`} onPress={saveSession} />}
@@ -193,10 +197,10 @@ export default function ExerciseDetail() {
                 </View>
                 {e.sets.map((s, i) => (
                   <Text key={i} style={styles.histSet}>
-                    {s.weight}kg × {s.reps}{s.rpe ? ` @ RPE ${s.rpe}` : ''}
+                    {fmtWeight(s.weight, units)} × {s.reps}{s.rpe ? ` @ RPE ${s.rpe}` : ''}
                   </Text>
                 ))}
-                <Text style={styles.histE1rm}>Est. 1RM: {entryBestE1RM(e)} kg</Text>
+                <Text style={styles.histE1rm}>Est. 1RM: {fmtWeight(entryBestE1RM(e), units)}</Text>
               </View>
             ))}
           </View>

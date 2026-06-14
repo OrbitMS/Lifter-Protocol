@@ -3,7 +3,7 @@ import { useState } from 'react';
 import { ScrollView, View } from 'react-native';
 import {
   Field,
-  Label,
+  InfoLabel,
   OptionCard,
   PrimaryButton,
   ProgressBar,
@@ -17,12 +17,14 @@ const SCALE = [1, 2, 3, 4, 5] as const;
 
 function Scale({
   label,
+  help,
   low,
   high,
   value,
   onChange,
 }: {
   label: string;
+  help: string;
   low: string;
   high: string;
   value: number;
@@ -30,7 +32,7 @@ function Scale({
 }) {
   return (
     <View style={{ gap: spacing.xs }}>
-      <Label>{label}</Label>
+      <InfoLabel help={help}>{label}</InfoLabel>
       <View style={{ flexDirection: 'row', gap: spacing.sm }}>
         {SCALE.map((n) => (
           <View key={n} style={{ flex: 1 }}>
@@ -49,11 +51,12 @@ function Scale({
 export default function Recovery() {
   const router = useRouter();
   const setRecovery = useProfileStore((s) => s.setRecovery);
+  const r = useProfileStore((s) => s.draft.profile.recovery);
 
-  const [job, setJob] = useState(2);
-  const [stress, setStress] = useState(2);
-  const [speed, setSpeed] = useState(3);
-  const [sleep, setSleep] = useState('');
+  const [job, setJob] = useState<number>(r?.jobActivity ?? 2);
+  const [stress, setStress] = useState<number>(r?.lifeStress ?? 2);
+  const [speed, setSpeed] = useState<number>(r?.recoverySpeed ?? 3);
+  const [sleep, setSleep] = useState(r?.sleepHours ? String(r.sleepHours) : '');
 
   const next = () => {
     setRecovery({
@@ -69,13 +72,36 @@ export default function Recovery() {
     <ScrollView contentContainerStyle={{ padding: spacing.lg, gap: spacing.md, flexGrow: 1 }}>
       <ProgressBar step={3} total={6} />
       <Title>Recovery</Title>
-      <Subtitle>This sets how aggressively we’ll program volume for you.</Subtitle>
+      <Subtitle>These four answers form your Recovery Index, which sets your sets and effort cap.</Subtitle>
 
-      <Scale label="How active is your job?" low="Sedentary" high="Heavy labor" value={job} onChange={setJob} />
-      <Scale label="Life stress" low="None" high="Very high" value={stress} onChange={setStress} />
-      <Scale label="How fast do you recover?" low="Slow" high="Very fast" value={speed} onChange={setSpeed} />
+      <Scale
+        label="How active is your job?"
+        help="A physical job eats into recovery, so a higher setting lowers your programmed volume."
+        low="Sedentary"
+        high="Heavy labor"
+        value={job}
+        onChange={setJob}
+      />
+      <Scale
+        label="Life stress"
+        help="More life stress means less recovery capacity — it lowers volume and your effort cap."
+        low="None"
+        high="Very high"
+        value={stress}
+        onChange={setStress}
+      />
+      <Scale
+        label="How fast do you recover?"
+        help="How quickly you bounce back between sessions. Faster recovery lets us add sets and push intensity higher."
+        low="Slow"
+        high="Very fast"
+        value={speed}
+        onChange={setSpeed}
+      />
 
-      <Label>Sleep per night (hours)</Label>
+      <InfoLabel help="The biggest recovery lever. More sleep raises your Recovery Index → more sets and a higher RPE ceiling.">
+        Sleep per night (hours)
+      </InfoLabel>
       <Field keyboardType="decimal-pad" value={sleep} onChangeText={setSleep} placeholder="7.5" />
 
       <PrimaryButton label="Continue" onPress={next} disabled={!sleep} />

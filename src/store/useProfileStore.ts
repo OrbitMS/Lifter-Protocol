@@ -11,6 +11,7 @@ import type {
 import type { Program, ProgramConfig } from '@/types/program';
 import { enrichRecovery } from '@/engine/recovery';
 import { generateProgram } from '@/engine/generator';
+import { roundLoad, trainingMaxesFromMaxes, type TrainingMaxes } from '@/lib/load';
 import { useLogStore } from './useLogStore';
 
 const genId = () => `p_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 7)}`;
@@ -23,6 +24,10 @@ export interface StoredProfile {
   program: Program;
   /** exercise substitutions: original base name -> replacement base name */
   overrides: Record<string, string>;
+  /** adaptive training maxes — auto-regulation moves these over time */
+  trainingMaxes?: TrainingMaxes;
+  /** completed training days: flattened day index -> ISO date completed */
+  completed?: Record<number, string>;
 }
 
 interface Draft {
@@ -34,6 +39,8 @@ interface ProfileState {
   profiles: StoredProfile[];
   activeId?: string;
   draft: Draft;
+  /** when set, buildProgram updates this profile instead of creating a new one */
+  editingId?: string;
 
   // onboarding setters write to the draft
   setBasics: (b: Basics) => void;
@@ -47,12 +54,18 @@ interface ProfileState {
 
   // multi-profile management
   startNewProfile: () => void;
+  /** load the active profile's answers into the draft for editing */
+  editActiveProfile: () => void;
   switchProfile: (id: string) => void;
   deleteProfile: (id: string) => void;
 
   // exercise substitution (active profile)
   setOverride: (slot: string, replacement: string) => void;
   clearOverride: (slot: string) => void;
+
+  // adaptive loop (active profile)
+  finishWorkout: (dayIndex: number, trainingMaxes: TrainingMaxes) => void;
+  nudgeTrainingMaxes: (multiplier: number) => void;
 
   reset: () => void;
 }
@@ -65,6 +78,7 @@ export const useProfileStore = create<ProfileState>()(
       profiles: [],
       activeId: undefined,
       draft: emptyDraft(),
+      editingId: undefined,
 
       setBasics: (basics) =>
         set((s) => ({ draft: { ...s.draft, profile: { ...s.draft.profile, basics } } })),
@@ -78,21 +92,46 @@ export const useProfileStore = create<ProfileState>()(
         set((s) => ({ draft: { ...s.draft, config: { ...s.draft.config, ...c } } })),
 
       buildProgram: () => {
-        const { draft } = get();
+        const { draft, editingId } = get();
         if (!draft.profile.history || !draft.profile.recovery || !draft.config.type) return;
         const program = generateProgram(draft.profile, draft.config as ProgramConfig);
+        const config = draft.config as ProgramConfig;
+        const trainingMaxes = trainingMaxesFromMaxes(draft.profile.history.maxes);
+
+        if (editingId) {
+          // update in place — keep id, overrides and logs; reset completion to the new plan
+          set((s) => ({
+            profiles: s.profiles.map((p) =>
+              p.id === editingId ? { ...p, profile: draft.profile, config, program, trainingMaxes, completed: {} } : p,
+            ),
+            activeId: editingId,
+            editingId: undefined,
+            draft: emptyDraft(),
+          }));
+          return;
+        }
+
         const id = genId();
         const stored: StoredProfile = {
           id,
           profile: draft.profile,
-          config: draft.config as ProgramConfig,
+          config,
           program,
           overrides: {},
+          trainingMaxes,
+          completed: {},
         };
         set((s) => ({ profiles: [...s.profiles, stored], activeId: id, draft: emptyDraft() }));
       },
 
-      startNewProfile: () => set({ draft: emptyDraft() }),
+      startNewProfile: () => set({ draft: emptyDraft(), editingId: undefined }),
+
+      editActiveProfile: () => {
+        const { profiles, activeId } = get();
+        const p = profiles.find((x) => x.id === activeId);
+        if (!p) return;
+        set({ draft: { profile: p.profile, config: p.config }, editingId: p.id });
+      },
 
       switchProfile: (id) => set({ activeId: id }),
 
@@ -122,7 +161,36 @@ export const useProfileStore = create<ProfileState>()(
           }),
         })),
 
-      reset: () => set({ profiles: [], activeId: undefined, draft: emptyDraft() }),
+      finishWorkout: (dayIndex, trainingMaxes) =>
+        set((s) => ({
+          profiles: s.profiles.map((p) =>
+            p.id === s.activeId
+              ? {
+                  ...p,
+                  trainingMaxes,
+                  completed: { ...(p.completed ?? {}), [dayIndex]: new Date().toISOString() },
+                }
+              : p,
+          ),
+        })),
+
+      nudgeTrainingMaxes: (multiplier) =>
+        set((s) => ({
+          profiles: s.profiles.map((p) => {
+            if (p.id !== s.activeId || !p.trainingMaxes) return p;
+            const tm = p.trainingMaxes;
+            return {
+              ...p,
+              trainingMaxes: {
+                squat: roundLoad(tm.squat * multiplier),
+                bench: roundLoad(tm.bench * multiplier),
+                deadlift: roundLoad(tm.deadlift * multiplier),
+              },
+            };
+          }),
+        })),
+
+      reset: () => set({ profiles: [], activeId: undefined, draft: emptyDraft(), editingId: undefined }),
     }),
     {
       name: 'lifter-protocol-profile',
@@ -163,3 +231,11 @@ export const useActiveProfile = () =>
 
 export const profileName = (p: StoredProfile, index: number): string =>
   p.profile.basics?.name?.trim() || `Athlete ${index + 1}`;
+
+/** Current training maxes, falling back to ~90% of entered 1RMs for older profiles. */
+export const effectiveTrainingMaxes = (p?: StoredProfile): TrainingMaxes | undefined => {
+  if (!p) return undefined;
+  if (p.trainingMaxes) return p.trainingMaxes;
+  if (p.profile.history) return trainingMaxesFromMaxes(p.profile.history.maxes);
+  return undefined;
+};

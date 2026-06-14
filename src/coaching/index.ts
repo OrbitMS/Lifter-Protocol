@@ -1,21 +1,19 @@
 import Constants from 'expo-constants';
 import { stubCoach, type CoachingClient } from '@/engine/coaching';
+import { useSettingsStore } from '@/store/useSettingsStore';
 import { createProxyCoach } from './proxyClient';
 
 export * from './models';
 export { createProxyCoach } from './proxyClient';
 export { createAnthropicCoach } from './anthropicClient';
 
-let cached: CoachingClient | null = null;
-
 /**
- * The coach the app should use. Returns the backend-proxy client when a
- * coachApiUrl is configured, otherwise the offline stub so the UI still works
- * without a server (e.g. first run, no network).
+ * The coach the app should use. Prefers the Settings override URL, then the
+ * app.json default; falls back to the offline stub when neither is set. Read
+ * fresh each call so a Settings change takes effect without a reload.
  */
 export function getCoach(): CoachingClient {
-  if (cached) return cached;
-  const url = Constants.expoConfig?.extra?.coachApiUrl as string | undefined;
-  cached = url ? createProxyCoach(url) : stubCoach;
-  return cached;
+  const override = useSettingsStore.getState().coachApiUrl?.trim();
+  const url = override || (Constants.expoConfig?.extra?.coachApiUrl as string | undefined);
+  return url ? createProxyCoach(url) : stubCoach;
 }

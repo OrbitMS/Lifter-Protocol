@@ -5,18 +5,12 @@ import { Subtitle, Title } from '@/components/ui';
 import { colors, radius, spacing } from '@/constants/theme';
 import { localCue, sessionCue, type CoachContext } from '@/engine/coaching';
 import { getCoach } from '@/coaching';
+import { flattenDays } from '@/lib/days';
+import { exerciseLoad } from '@/lib/load';
 import { baseExerciseName } from '@/lib/metrics';
-import { useActiveProfile } from '@/store/useProfileStore';
-import type { PhaseName, Session } from '@/types/program';
-
-interface Day {
-  blockIndex: number;
-  weekIndex: number;
-  phase: PhaseName;
-  weekOfBlock: number;
-  weeksInBlock: number;
-  session: Session;
-}
+import { fmtWeight } from '@/lib/units';
+import { effectiveTrainingMaxes, useActiveProfile } from '@/store/useProfileStore';
+import { useSettingsStore } from '@/store/useSettingsStore';
 
 const SWAPPABLE = new Set(['accessory', 'secondary', 'core']);
 
@@ -26,27 +20,11 @@ export default function Today() {
   const program = active?.program;
   const profile = active?.profile ?? {};
   const overrides = active?.overrides ?? {};
+  const tms = effectiveTrainingMaxes(active);
+  const units = useSettingsStore((s) => s.units);
+  const completed = active?.completed ?? {};
 
-  // flatten the whole macrocycle into an ordered list of training days
-  const days = useMemo<Day[]>(() => {
-    if (!program) return [];
-    const out: Day[] = [];
-    program.blocks.forEach((b, bi) =>
-      b.weeks.forEach((w, wi) =>
-        w.sessions.forEach((session) =>
-          out.push({
-            blockIndex: bi,
-            weekIndex: wi,
-            phase: b.phase,
-            weekOfBlock: wi + 1,
-            weeksInBlock: b.weeks.length,
-            session,
-          }),
-        ),
-      ),
-    );
-    return out;
-  }, [program]);
+  const days = useMemo(() => flattenDays(program), [program]);
 
   const [index, setIndex] = useState(0);
   useEffect(() => setIndex(0), [active?.id]); // reset when switching profiles
@@ -134,6 +112,18 @@ export default function Today() {
         <Title>{day.session.label}</Title>
         <Subtitle>{program.type} · swipe or use ‹ › to browse your weeks</Subtitle>
 
+        {completed[safeIndex] ? (
+          <View style={styles.doneBadge}>
+            <Text style={styles.doneText}>✓ Completed {new Date(completed[safeIndex]).toLocaleDateString()}</Text>
+          </View>
+        ) : null}
+        <Pressable
+          style={styles.startBtn}
+          onPress={() => router.push({ pathname: '/workout', params: { day: String(safeIndex) } })}
+        >
+          <Text style={styles.startText}>{completed[safeIndex] ? 'Repeat workout' : 'Start workout'}</Text>
+        </Pressable>
+
         {cue ? (
           <View style={styles.cue}>
             <Text style={styles.cueLabel}>COACH</Text>
@@ -148,7 +138,8 @@ export default function Today() {
           const display = swappable ? replaced ?? base : ex.name;
           const navName = swappable ? replaced ?? base : base;
           const slot = swappable ? base : undefined;
-          const target = `${ex.sets} × ${ex.reps}${ex.intensity.rpe ? ` @ RPE ${ex.intensity.rpe}` : ''}`;
+          const load = exerciseLoad(ex, tms);
+          const target = `${ex.sets} × ${ex.reps}${ex.intensity.rpe ? ` @ RPE ${ex.intensity.rpe}` : ''}${load ? ` · ${fmtWeight(load, units)}` : ''}`;
           return (
             <Pressable
               key={i}
@@ -208,6 +199,22 @@ const styles = StyleSheet.create({
   navBtnText: { color: colors.text, fontSize: 24, lineHeight: 26 },
   dayCount: { color: colors.text, fontWeight: '700' },
   dayPhase: { color: colors.textMuted, fontSize: 12, textTransform: 'capitalize', marginTop: 2 },
+  startBtn: {
+    backgroundColor: colors.accent,
+    borderRadius: radius.md,
+    paddingVertical: spacing.md,
+    alignItems: 'center',
+  },
+  startText: { color: colors.text, fontSize: 16, fontWeight: '800' },
+  doneBadge: {
+    backgroundColor: colors.surface,
+    borderRadius: radius.sm,
+    borderWidth: 1,
+    borderColor: colors.success,
+    paddingVertical: spacing.sm,
+    alignItems: 'center',
+  },
+  doneText: { color: colors.success, fontWeight: '700' },
   row: {
     backgroundColor: colors.surface,
     borderRadius: radius.md,

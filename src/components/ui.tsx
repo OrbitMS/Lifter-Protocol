@@ -1,4 +1,4 @@
-import { ReactNode } from 'react';
+import { ReactNode, useState } from 'react';
 import {
   Pressable,
   StyleSheet,
@@ -23,6 +23,35 @@ export function Subtitle({ children }: { children: ReactNode }) {
 
 export function Label({ children }: { children: ReactNode }) {
   return <Text style={styles.label}>{children}</Text>;
+}
+
+/**
+ * A question label with a tappable "?" that expands a short explanation of how
+ * the athlete's answer affects their training plan.
+ */
+export function InfoLabel({ children, help }: { children: ReactNode; help: string }) {
+  const [open, setOpen] = useState(false);
+  return (
+    <View style={{ gap: spacing.xs }}>
+      <View style={styles.infoRow}>
+        <Text style={styles.labelInline}>{children}</Text>
+        <Pressable
+          onPress={() => setOpen((o) => !o)}
+          hitSlop={10}
+          accessibilityRole="button"
+          accessibilityLabel="Why this matters"
+          style={[styles.helpDot, open && styles.helpDotOpen]}
+        >
+          <Text style={[styles.helpMark, open && styles.helpMarkOpen]}>?</Text>
+        </Pressable>
+      </View>
+      {open ? (
+        <View style={styles.helpBox}>
+          <Text style={styles.helpText}>{help}</Text>
+        </View>
+      ) : null}
+    </View>
+  );
 }
 
 export function ProgressBar({ step, total }: { step: number; total: number }) {
@@ -95,6 +124,28 @@ const styles = StyleSheet.create({
   title: { color: colors.text, fontSize: 26, fontWeight: '700' },
   subtitle: { color: colors.textMuted, fontSize: 15, lineHeight: 21 },
   label: { color: colors.text, fontSize: 14, fontWeight: '600', marginBottom: spacing.xs },
+  labelInline: { color: colors.text, fontSize: 14, fontWeight: '600' },
+  infoRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
+  helpDot: {
+    width: 18,
+    height: 18,
+    borderRadius: 9,
+    borderWidth: 1,
+    borderColor: colors.textMuted,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  helpDotOpen: { borderColor: colors.accent, backgroundColor: colors.accentSoft },
+  helpMark: { color: colors.textMuted, fontSize: 12, fontWeight: '800', lineHeight: 14 },
+  helpMarkOpen: { color: colors.accent },
+  helpBox: {
+    backgroundColor: colors.surfaceAlt,
+    borderRadius: radius.sm,
+    padding: spacing.sm,
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+  helpText: { color: colors.textMuted, fontSize: 13, lineHeight: 19 },
   progressTrack: {
     height: 6,
     backgroundColor: colors.surfaceAlt,

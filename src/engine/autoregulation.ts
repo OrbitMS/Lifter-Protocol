@@ -1,4 +1,4 @@
-import type { SessionLog, WeeklyCheckIn } from '@/types/program';
+import type { SessionLog, SetLog, WeeklyCheckIn } from '@/types/program';
 
 export interface AdjustmentResult {
   /** multiply next week's top-set load by this */
@@ -6,6 +6,17 @@ export interface AdjustmentResult {
   /** add/subtract sets on main work */
   setDelta: number;
   reason: string;
+}
+
+/**
+ * Auto-regulation for a single lift from the sets just logged for it, comparing
+ * the average RPE to the prescribed target. Drives the training-max update.
+ */
+export function adjustForLift(loggedSets: SetLog[], targetRpe: number): AdjustmentResult {
+  return adjustFromSession(
+    { date: '', weekIndex: 0, day: 'mon', exercises: [{ exerciseName: 'lift', sets: loggedSets }] },
+    targetRpe,
+  );
 }
 
 /**

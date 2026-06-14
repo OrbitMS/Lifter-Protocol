@@ -1,7 +1,7 @@
 import { useRouter } from 'expo-router';
 import { useState } from 'react';
 import { ScrollView, View } from 'react-native';
-import { Label, OptionCard, PrimaryButton, ProgressBar, Subtitle, Title } from '@/components/ui';
+import { InfoLabel, OptionCard, PrimaryButton, ProgressBar, Subtitle, Title } from '@/components/ui';
 import { spacing } from '@/constants/theme';
 import { useProfileStore } from '@/store/useProfileStore';
 import type { LowerFocus, UpperFocus, Weekday } from '@/types/program';
@@ -23,10 +23,10 @@ export default function Customize() {
   const buildProgram = useProfileStore((s) => s.buildProgram);
 
   const [ratio, setRatio] = useState(config.bbToPlRatio ?? 40);
-  const [upper, setUpper] = useState<UpperFocus[]>(['back']);
-  const [lower, setLower] = useState<LowerFocus[]>(['quads']);
-  const [days, setDays] = useState<Weekday[]>(['mon', 'tue', 'thu', 'fri']);
-  const [competing, setCompeting] = useState(false);
+  const [upper, setUpper] = useState<UpperFocus[]>(config.upperFocus ?? ['back']);
+  const [lower, setLower] = useState<LowerFocus[]>(config.lowerFocus ?? ['quads']);
+  const [days, setDays] = useState<Weekday[]>(config.trainingDays ?? ['mon', 'tue', 'thu', 'fri']);
+  const [competing, setCompeting] = useState(config.competing ?? false);
 
   const isCombo = config.type !== 'powerlifting';
   const valid = days.length >= 3 && days.length <= 6;
@@ -53,7 +53,9 @@ export default function Customize() {
 
       {isCombo && (
         <>
-          <Label>Bodybuilding ↔ Powerlifting split</Label>
+          <InfoLabel help="More bodybuilding % adds more accessory movements per session; more powerlifting % keeps it lean and strength-focused.">
+            Bodybuilding ↔ Powerlifting split
+          </InfoLabel>
           <View style={{ flexDirection: 'row', gap: spacing.sm }}>
             {RATIOS.map((r) => (
               <View key={r} style={{ flex: 1 }}>
@@ -69,7 +71,9 @@ export default function Customize() {
         </>
       )}
 
-      <Label>Improve in upper body</Label>
+      <InfoLabel help="We weight your accessory picks toward these areas — choose ‘arms’ and you’ll see more curls and triceps work.">
+        Improve in upper body
+      </InfoLabel>
       <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm }}>
         {UPPER.map((u) => (
           <View key={u} style={{ width: '48%' }}>
@@ -78,7 +82,9 @@ export default function Customize() {
         ))}
       </View>
 
-      <Label>Improve in lower body</Label>
+      <InfoLabel help="Same for legs — e.g. ‘hamstrings’ brings in RDLs and leg curls.">
+        Improve in lower body
+      </InfoLabel>
       <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm }}>
         {LOWER.map((l) => (
           <View key={l} style={{ width: '48%' }}>
@@ -87,7 +93,9 @@ export default function Customize() {
         ))}
       </View>
 
-      <Label>Training days ({days.length})</Label>
+      <InfoLabel help="Sets how many sessions per week; your main lifts rotate across the days you pick.">
+        Training days ({days.length})
+      </InfoLabel>
       <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm }}>
         {DAYS.map((d) => (
           <View key={d} style={{ width: '30%' }}>
@@ -96,7 +104,9 @@ export default function Customize() {
         ))}
       </View>
 
-      <Label>Preparing for a competition / meet?</Label>
+      <InfoLabel help="Peaking for a meet builds toward max strength (intensification → realization → deload) and tapers accessories near the end.">
+        Preparing for a competition / meet?
+      </InfoLabel>
       <OptionCard
         title="Yes — peak for a meet"
         description="Builds toward a strength peak (intensification → realization) and tapers accessories near the end."

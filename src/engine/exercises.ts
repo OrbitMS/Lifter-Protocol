@@ -52,7 +52,6 @@ const STRENGTH_PHASES: PhaseName[] = ['intensification', 'realization'];
 const isHypertrophyPhase = (p: PhaseName) => p === 'hypertrophy' || p === 'accumulation';
 
 const clamp = (n: number, lo: number, hi: number) => Math.max(lo, Math.min(hi, n));
-const round = (n: number, step = 2.5) => Math.round(n / step) * step;
 const dedupe = <T>(xs: T[]) => Array.from(new Set(xs));
 
 /**
@@ -92,8 +91,6 @@ export interface SupportWorkOptions {
   /** 1-based week within the block (rotates selection) */
   week: number;
   phaseSpec: PhaseSpec;
-  /** training max of the main lift, for variation load hints */
-  trainingMax: number;
   /** accessory-count modifier from frequency pref, diet goal, experience, age */
   accessoryMod: number;
   /** competition prep — taper accessories harder in the strength/peak phases */
@@ -114,7 +111,7 @@ export interface SupportWorkOptions {
 export function selectSupportWork(opts: SupportWorkOptions): ExercisePrescription[] {
   const {
     lift, phase, programType, bbToPlRatio, upperFocus, lowerFocus,
-    setMod, rpeCeiling, week, phaseSpec, trainingMax, accessoryMod, competing,
+    setMod, rpeCeiling, week, phaseSpec, accessoryMod, competing,
   } = opts;
 
   const region: 'upper' | 'lower' = lift === 'bench' ? 'upper' : 'lower';
@@ -135,7 +132,7 @@ export function selectSupportWork(opts: SupportWorkOptions): ExercisePrescriptio
     const pct = clamp(phaseSpec.mainPercent - 0.1, 0.6, 0.8);
     used.add(name);
     out.push({
-      name: `${name} — ${round(trainingMax * pct)}kg`,
+      name,
       category: lift,
       role: 'variation',
       sets: clamp(3 + setMod, 2, 4),

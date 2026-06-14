@@ -13,10 +13,12 @@ const { withAppBuildGradle } = require('@expo/config-plugins');
 
 const CAMERAX_VERSION = '1.4.2';
 
-const CAMERAX_ARTIFACTS = [
+// camera-camera2-pipe is listed in vision-camera's build.gradle but is NEVER
+// imported by its Java/Kotlin source. It does not exist on Maven at 1.4.2, so
+// we exclude it entirely to prevent Gradle from trying to resolve it.
+const CAMERAX_FORCE = [
   'camera-core',
   'camera-camera2',
-  'camera-camera2-pipe',
   'camera-lifecycle',
   'camera-video',
   'camera-view',
@@ -24,17 +26,20 @@ const CAMERAX_ARTIFACTS = [
 ];
 
 function buildResolutionBlock() {
-  const forces = CAMERAX_ARTIFACTS
+  const forces = CAMERAX_FORCE
     .map((a) => `        force "androidx.camera:${a}:${CAMERAX_VERSION}"`)
     .join('\n');
   return `
 // Force CameraX to ${CAMERAX_VERSION} — vision-camera v5 pulls in 1.7.0-alpha01
 // which requires AGP 8.9.1, but Expo SDK 52 ships AGP 8.6.0. VisionCamera v5
 // only uses stable CameraX APIs available since 1.3.x so the downgrade is safe.
+// camera-camera2-pipe is excluded because it has no 1.4.2 release and is
+// never actually imported by vision-camera's Java/Kotlin source.
 configurations.all {
     resolutionStrategy {
 ${forces}
     }
+    exclude group: 'androidx.camera', module: 'camera-camera2-pipe'
 }
 `;
 }

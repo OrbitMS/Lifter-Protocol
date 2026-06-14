@@ -2,7 +2,9 @@ import { Stack, useRouter } from 'expo-router';
 import { useState } from 'react';
 import { Alert, Platform, Pressable, ScrollView, Share, StyleSheet, Text, View } from 'react-native';
 import { Field, Label, OptionCard, Subtitle } from '@/components/ui';
-import { colors, radius, spacing } from '@/constants/theme';
+import { useTheme, useThemedStyles, useThemeStore, type ThemeMode } from '@/lib/useTheme';
+import { radius, spacing, type Palette } from '@/constants/theme';
+import { coachIsOnline } from '@/coaching';
 import { useLogStore } from '@/store/useLogStore';
 import { useProfileStore } from '@/store/useProfileStore';
 import { useSettingsStore } from '@/store/useSettingsStore';
@@ -21,11 +23,16 @@ function confirm(message: string, onYes: () => void) {
 }
 
 export default function Settings() {
+  const { palette: c } = useTheme();
+  const styles = useThemedStyles(makeStyles);
+  const themeMode = useThemeStore((s) => s.mode);
+  const setThemeMode = useThemeStore((s) => s.setMode);
   const router = useRouter();
   const units = useSettingsStore((s) => s.units);
   const setUnits = useSettingsStore((s) => s.setUnits);
   const coachApiUrl = useSettingsStore((s) => s.coachApiUrl);
   const setCoachApiUrl = useSettingsStore((s) => s.setCoachApiUrl);
+  const coachOnline = coachIsOnline();
 
   const [showExport, setShowExport] = useState(false);
 
@@ -58,7 +65,7 @@ export default function Settings() {
     });
 
   return (
-    <ScrollView style={{ backgroundColor: colors.bg }} contentContainerStyle={{ padding: spacing.lg, gap: spacing.lg }}>
+    <ScrollView style={{ backgroundColor: c.bg }} contentContainerStyle={{ padding: spacing.lg, gap: spacing.lg }}>
       <Stack.Screen options={{ title: 'Settings', headerShown: true }} />
 
       <View style={{ gap: spacing.sm }}>
@@ -74,6 +81,22 @@ export default function Settings() {
       </View>
 
       <View style={{ gap: spacing.sm }}>
+        <Label>Appearance</Label>
+        <View style={{ flexDirection: 'row', gap: spacing.sm }}>
+          {(['system', 'light', 'dark'] as ThemeMode[]).map((m) => (
+            <View key={m} style={{ flex: 1 }}>
+              <OptionCard
+                title={m[0].toUpperCase() + m.slice(1)}
+                selected={themeMode === m}
+                onPress={() => setThemeMode(m)}
+              />
+            </View>
+          ))}
+        </View>
+        <Subtitle>Match your device appearance, or force light / dark.</Subtitle>
+      </View>
+
+      <View style={{ gap: spacing.sm }}>
         <Label>Coach backend URL</Label>
         <Field
           value={coachApiUrl}
@@ -82,7 +105,11 @@ export default function Settings() {
           autoCapitalize="none"
           autoCorrect={false}
         />
-        <Subtitle>Override the default coach proxy. Leave blank to use the app default; empty falls back to offline cues.</Subtitle>
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.sm }}>
+          <View style={[styles.statusDot, { backgroundColor: coachOnline ? c.success : c.textMuted }]} />
+          <Subtitle>{coachOnline ? 'AI coach connected' : 'Offline — using built-in cues'}</Subtitle>
+        </View>
+        <Subtitle>Override the coach proxy URL. Leave blank to use the app default. A localhost URL only works while developing — shipped builds fall back to offline cues.</Subtitle>
       </View>
 
       <View style={{ gap: spacing.sm }}>
@@ -94,25 +121,24 @@ export default function Settings() {
           <Field value={exportJson()} editable={false} multiline numberOfLines={8} style={styles.export} />
         ) : null}
         <Pressable style={[styles.btn, styles.danger]} onPress={wipe}>
-          <Text style={[styles.btnText, { color: colors.danger }]}>Wipe all data</Text>
+          <Text style={[styles.btnText, { color: c.danger }]}>Wipe all data</Text>
         </Pressable>
       </View>
-
-      <Subtitle>Theme switching (light mode) is coming in a future update.</Subtitle>
     </ScrollView>
   );
 }
 
-const styles = StyleSheet.create({
+const makeStyles = (c: Palette) => StyleSheet.create({
   btn: {
-    backgroundColor: colors.surface,
+    backgroundColor: c.surface,
     borderWidth: 1,
-    borderColor: colors.border,
+    borderColor: c.border,
     borderRadius: radius.md,
     paddingVertical: spacing.md,
     alignItems: 'center',
   },
-  btnText: { color: colors.text, fontWeight: '700' },
-  danger: { borderColor: colors.danger },
+  btnText: { color: c.text, fontWeight: '700' },
+  statusDot: { width: 8, height: 8, borderRadius: 4 },
+  danger: { borderColor: c.danger },
   export: { minHeight: 160, fontSize: 11, textAlignVertical: 'top' },
 });

@@ -10,7 +10,7 @@ import Svg, {
   Stop,
   Text as SvgText,
 } from 'react-native-svg';
-import { colors } from '@/constants/theme';
+import { useTheme } from '@/lib/useTheme';
 
 export interface ChartPoint {
   x: number; // any monotonic value (e.g. timestamp or index)
@@ -26,13 +26,15 @@ export function LineChart({
   data,
   height = 160,
   width = 320,
-  color = colors.accent,
+  color,
 }: {
   data: ChartPoint[];
   height?: number;
   width?: number;
   color?: string;
 }) {
+  const { palette: c } = useTheme();
+  const stroke = color ?? c.accent;
   if (data.length === 0) return null;
 
   const padL = 34;
@@ -58,15 +60,15 @@ export function LineChart({
   // closed polygon for the gradient area fill (line down to the baseline)
   const baseline = padT + plotH;
   const area = `${sx(minX)},${baseline} ${points} ${sx(maxX)},${baseline}`;
-  const gradId = `area-${useId()}`;
+  const gradId = `area-${useId().replace(/:/g, '')}`;
 
   return (
     <View>
       <Svg width={width} height={height}>
         <Defs>
           <LinearGradient id={gradId} x1="0" y1="0" x2="0" y2="1">
-            <Stop offset="0" stopColor={color} stopOpacity={0.35} />
-            <Stop offset="1" stopColor={color} stopOpacity={0} />
+            <Stop offset="0" stopColor={stroke} stopOpacity={0.35} />
+            <Stop offset="1" stopColor={stroke} stopOpacity={0} />
           </LinearGradient>
         </Defs>
         {data.length > 1 && <Polygon points={area} fill={`url(#${gradId})`} />}
@@ -80,7 +82,7 @@ export function LineChart({
               y1={y}
               x2={width - padR}
               y2={y}
-              stroke={colors.border}
+              stroke={c.border}
               strokeWidth={1}
             />
           );
@@ -90,17 +92,17 @@ export function LineChart({
             key={`l${i}`}
             x={4}
             y={sy(gy) + 4}
-            fill={colors.textMuted}
+            fill={c.textMuted}
             fontSize={10}
           >
             {Math.round(gy)}
           </SvgText>
         ))}
         {data.length > 1 && (
-          <Polyline points={points} fill="none" stroke={color} strokeWidth={2.5} />
+          <Polyline points={points} fill="none" stroke={stroke} strokeWidth={2.5} />
         )}
         {data.map((d, i) => (
-          <Circle key={i} cx={sx(d.x)} cy={sy(d.y)} r={3.5} fill={color} />
+          <Circle key={i} cx={sx(d.x)} cy={sy(d.y)} r={3.5} fill={stroke} />
         ))}
         {/* first & last x labels */}
         {[data[0], data[data.length - 1]].map((d, i) =>
@@ -109,7 +111,7 @@ export function LineChart({
               key={`x${i}`}
               x={i === 0 ? padL : width - padR}
               y={height - 6}
-              fill={colors.textMuted}
+              fill={c.textMuted}
               fontSize={10}
               textAnchor={i === 0 ? 'start' : 'end'}
             >

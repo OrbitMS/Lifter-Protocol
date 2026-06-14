@@ -1,6 +1,6 @@
 import { Tabs } from 'expo-router';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
-import { colors } from '@/constants/theme';
+import { useTheme } from '@/lib/useTheme';
 
 type IconName = keyof typeof MaterialCommunityIcons.glyphMap;
 
@@ -10,22 +10,23 @@ const icon =
     <MaterialCommunityIcons name={name} size={size} color={color} />;
 
 export default function TabsLayout() {
+  const { palette: c } = useTheme();
   return (
     <Tabs
       screenOptions={{
-        headerStyle: { backgroundColor: colors.bg, shadowColor: 'transparent', elevation: 0 },
-        headerTintColor: colors.text,
+        headerStyle: { backgroundColor: c.bg, shadowColor: 'transparent', elevation: 0 },
+        headerTintColor: c.text,
         headerTitleStyle: { fontWeight: '800', letterSpacing: -0.3, fontSize: 20 },
-        sceneStyle: { backgroundColor: colors.bg },
+        sceneStyle: { backgroundColor: c.bg },
         tabBarStyle: {
-          backgroundColor: colors.bgElevated,
-          borderTopColor: colors.border,
+          backgroundColor: c.bgElevated,
+          borderTopColor: c.border,
           height: 64,
           paddingTop: 6,
           paddingBottom: 10,
         },
-        tabBarActiveTintColor: colors.accent,
-        tabBarInactiveTintColor: colors.textMuted,
+        tabBarActiveTintColor: c.accent,
+        tabBarInactiveTintColor: c.textMuted,
         tabBarLabelStyle: { fontSize: 11, fontWeight: '700', letterSpacing: 0.2 },
       }}
     >

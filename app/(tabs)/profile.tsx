@@ -3,7 +3,8 @@ import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { ReactNode } from 'react';
 import { Alert, Platform, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { PrimaryButton, Subtitle, Title } from '@/components/ui';
-import { colors, radius, spacing } from '@/constants/theme';
+import { useTheme, useThemedStyles } from '@/lib/useTheme';
+import { radius, spacing, type Palette } from '@/constants/theme';
 import { getProgramMeta } from '@/constants/programs';
 import { fmtWeight } from '@/lib/units';
 import {
@@ -14,6 +15,7 @@ import {
 import { useSettingsStore } from '@/store/useSettingsStore';
 
 function Section({ title, children }: { title: string; children: ReactNode }) {
+  const styles = useThemedStyles(makeStyles);
   return (
     <View style={{ gap: spacing.xs }}>
       <Text style={styles.section}>{title}</Text>
@@ -22,6 +24,7 @@ function Section({ title, children }: { title: string; children: ReactNode }) {
   );
 }
 function Row({ k, v }: { k: string; v: ReactNode }) {
+  const styles = useThemedStyles(makeStyles);
   return (
     <View style={styles.row}>
       <Text style={styles.k}>{k}</Text>
@@ -33,6 +36,8 @@ const cap = (s?: string) => (s ? s[0].toUpperCase() + s.slice(1) : '—');
 const list = (xs?: string[]) => (xs && xs.length ? xs.map(cap).join(', ') : '—');
 
 export default function ProfileTab() {
+  const { palette: c } = useTheme();
+  const styles = useThemedStyles(makeStyles);
   const router = useRouter();
   const profiles = useProfileStore((s) => s.profiles);
   const activeId = useProfileStore((s) => s.activeId);
@@ -81,7 +86,7 @@ export default function ProfileTab() {
   const meta = program ? getProgramMeta(program.type) : null;
 
   return (
-    <ScrollView style={{ backgroundColor: colors.bg }} contentContainerStyle={{ padding: spacing.lg, gap: spacing.lg, flexGrow: 1 }}>
+    <ScrollView style={{ backgroundColor: c.bg }} contentContainerStyle={{ padding: spacing.lg, gap: spacing.lg, flexGrow: 1 }}>
       <View>
         <Title>{p ? profileName(p, profiles.findIndex((x) => x.id === p.id)) : 'Profiles'}</Title>
         <Subtitle>Switch between athletes or add a new profile — each keeps its own plan and logs.</Subtitle>
@@ -90,12 +95,12 @@ export default function ProfileTab() {
       <View style={{ flexDirection: 'row', gap: spacing.sm }}>
         {p ? (
           <Pressable style={styles.toolBtn} onPress={editProfile}>
-            <MaterialCommunityIcons name="account-edit" size={18} color={colors.text} />
+            <MaterialCommunityIcons name="account-edit" size={18} color={c.text} />
             <Text style={styles.toolText}>Edit profile</Text>
           </Pressable>
         ) : null}
         <Pressable style={styles.toolBtn} onPress={() => router.push('/settings')}>
-          <MaterialCommunityIcons name="cog" size={18} color={colors.text} />
+          <MaterialCommunityIcons name="cog" size={18} color={c.text} />
           <Text style={styles.toolText}>Settings</Text>
         </Pressable>
       </View>
@@ -185,54 +190,54 @@ export default function ProfileTab() {
   );
 }
 
-const styles = StyleSheet.create({
-  section: { color: colors.accent, fontSize: 12, fontWeight: '800', letterSpacing: 1 },
+const makeStyles = (c: Palette) => StyleSheet.create({
+  section: { color: c.accent, fontSize: 12, fontWeight: '800', letterSpacing: 1 },
   toolBtn: {
     flex: 1,
     flexDirection: 'row',
     gap: spacing.xs,
-    backgroundColor: colors.surface,
+    backgroundColor: c.surface,
     borderWidth: 1,
-    borderColor: colors.border,
+    borderColor: c.border,
     borderRadius: radius.md,
     paddingVertical: spacing.sm,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  toolText: { color: colors.text, fontWeight: '700' },
+  toolText: { color: c.text, fontWeight: '700' },
   card: {
-    backgroundColor: colors.surface,
+    backgroundColor: c.surface,
     borderRadius: radius.md,
     paddingHorizontal: spacing.md,
     paddingVertical: spacing.xs,
     borderWidth: 1,
-    borderColor: colors.border,
+    borderColor: c.border,
   },
   row: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: spacing.sm },
-  k: { color: colors.textMuted, fontSize: 14 },
-  v: { color: colors.text, fontSize: 14, fontWeight: '600', textTransform: 'capitalize', maxWidth: '60%', textAlign: 'right' },
+  k: { color: c.textMuted, fontSize: 14 },
+  v: { color: c.text, fontSize: 14, fontWeight: '600', textTransform: 'capitalize', maxWidth: '60%', textAlign: 'right' },
   profRow: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: spacing.sm,
-    backgroundColor: colors.surface,
+    backgroundColor: c.surface,
     borderRadius: radius.md,
     borderWidth: 1,
-    borderColor: colors.border,
+    borderColor: c.border,
     padding: spacing.md,
   },
-  profRowActive: { borderColor: colors.accent, backgroundColor: colors.accentSoft },
-  profName: { color: colors.text, fontSize: 16, fontWeight: '700' },
-  profMeta: { color: colors.textMuted, fontSize: 12, marginTop: 2 },
-  activeTag: { color: colors.accent, fontSize: 10, fontWeight: '800', letterSpacing: 1 },
-  del: { color: colors.textMuted, fontSize: 12 },
+  profRowActive: { borderColor: c.accent, backgroundColor: c.accentSoft },
+  profName: { color: c.text, fontSize: 16, fontWeight: '700' },
+  profMeta: { color: c.textMuted, fontSize: 12, marginTop: 2 },
+  activeTag: { color: c.accent, fontSize: 10, fontWeight: '800', letterSpacing: 1 },
+  del: { color: c.textMuted, fontSize: 12 },
   addProf: {
     borderWidth: 1,
-    borderColor: colors.accent,
+    borderColor: c.accent,
     borderStyle: 'dashed',
     borderRadius: radius.md,
     paddingVertical: spacing.md,
     alignItems: 'center',
   },
-  addProfText: { color: colors.accent, fontWeight: '700' },
+  addProfText: { color: c.accent, fontWeight: '700' },
 });

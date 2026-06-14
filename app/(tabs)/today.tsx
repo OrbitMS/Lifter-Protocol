@@ -2,7 +2,8 @@ import { useRouter } from 'expo-router';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { PanResponder, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { Badge, Subtitle, Title } from '@/components/ui';
-import { colors, radius, shadow, spacing } from '@/constants/theme';
+import { useTheme, useThemedStyles } from '@/lib/useTheme';
+import { radius, shadow, spacing, type Palette } from '@/constants/theme';
 import { localCue, sessionCue, type CoachContext } from '@/engine/coaching';
 import { getCoach } from '@/coaching';
 import { flattenDays } from '@/lib/days';
@@ -15,6 +16,8 @@ import { useSettingsStore } from '@/store/useSettingsStore';
 const SWAPPABLE = new Set(['accessory', 'secondary', 'core']);
 
 export default function Today() {
+  const { palette: c } = useTheme();
+  const styles = useThemedStyles(makeStyles);
   const router = useRouter();
   const active = useActiveProfile();
   const program = active?.program;
@@ -75,7 +78,7 @@ export default function Today() {
 
   if (!program || !day) {
     return (
-      <View style={{ flex: 1, backgroundColor: colors.bg, padding: spacing.lg }}>
+      <View style={{ flex: 1, backgroundColor: c.bg, padding: spacing.lg }}>
         <Title>No program yet</Title>
         <Subtitle>Finish onboarding to generate your plan.</Subtitle>
       </View>
@@ -83,7 +86,7 @@ export default function Today() {
   }
 
   return (
-    <View style={{ flex: 1, backgroundColor: colors.bg }} {...pan.panHandlers}>
+    <View style={{ flex: 1, backgroundColor: c.bg }} {...pan.panHandlers}>
       <ScrollView contentContainerStyle={{ padding: spacing.lg, gap: spacing.md }}>
         {/* day navigator */}
         <View style={styles.nav}>
@@ -183,59 +186,59 @@ export default function Today() {
   );
 }
 
-const styles = StyleSheet.create({
+const makeStyles = (c: Palette) => StyleSheet.create({
   nav: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
   navBtn: {
     width: 44,
     height: 44,
     borderRadius: radius.md,
-    backgroundColor: colors.surface,
+    backgroundColor: c.surface,
     borderWidth: 1,
-    borderColor: colors.border,
+    borderColor: c.border,
     alignItems: 'center',
     justifyContent: 'center',
   },
   navBtnOff: { opacity: 0.35 },
-  navBtnText: { color: colors.text, fontSize: 24, lineHeight: 26 },
-  dayCount: { color: colors.text, fontWeight: '700' },
-  dayPhase: { color: colors.textMuted, fontSize: 12, textTransform: 'capitalize', marginTop: 2 },
+  navBtnText: { color: c.text, fontSize: 24, lineHeight: 26 },
+  dayCount: { color: c.text, fontWeight: '700' },
+  dayPhase: { color: c.textMuted, fontSize: 12, textTransform: 'capitalize', marginTop: 2 },
   startBtn: {
-    backgroundColor: colors.accent,
+    backgroundColor: c.accent,
     borderRadius: radius.pill,
     paddingVertical: spacing.md,
     alignItems: 'center',
     ...shadow.glow,
   },
-  startText: { color: colors.onAccent, fontSize: 16, fontWeight: '800', letterSpacing: 0.2 },
+  startText: { color: c.onAccent, fontSize: 16, fontWeight: '800', letterSpacing: 0.2 },
   doneBadge: {
-    backgroundColor: colors.surface,
+    backgroundColor: c.surface,
     borderRadius: radius.sm,
     borderWidth: 1,
-    borderColor: colors.success,
+    borderColor: c.success,
     paddingVertical: spacing.sm,
     alignItems: 'center',
   },
-  doneText: { color: colors.success, fontWeight: '700' },
+  doneText: { color: c.success, fontWeight: '700' },
   row: {
-    backgroundColor: colors.surface,
+    backgroundColor: c.surface,
     borderRadius: radius.md,
     padding: spacing.md,
     borderWidth: 1,
-    borderColor: colors.border,
+    borderColor: c.border,
     ...shadow.card,
   },
   exHead: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', gap: spacing.sm },
-  exName: { color: colors.text, fontSize: 16, fontWeight: '600', flexShrink: 1 },
+  exName: { color: c.text, fontSize: 16, fontWeight: '600', flexShrink: 1 },
   badgeGroup: { flexDirection: 'row', gap: spacing.xs, flexShrink: 0 },
-  exMeta: { color: colors.textMuted, marginTop: 4 },
-  chev: { color: colors.textMuted, fontSize: 22, marginTop: 2 },
+  exMeta: { color: c.textMuted, marginTop: 4 },
+  chev: { color: c.textMuted, fontSize: 22, marginTop: 2 },
   cue: {
-    backgroundColor: colors.accentSoft,
+    backgroundColor: c.accentSoft,
     borderRadius: radius.md,
     padding: spacing.md,
     borderWidth: 1,
-    borderColor: colors.accent,
+    borderColor: c.accent,
   },
-  cueLabel: { color: colors.accent, fontSize: 11, fontWeight: '800', letterSpacing: 1 },
-  cueText: { color: colors.text, marginTop: 4, lineHeight: 20 },
+  cueLabel: { color: c.accent, fontSize: 11, fontWeight: '800', letterSpacing: 1 },
+  cueText: { color: c.text, marginTop: 4, lineHeight: 20 },
 });

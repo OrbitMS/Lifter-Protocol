@@ -2,7 +2,8 @@ import { useRouter } from 'expo-router';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { Badge, Subtitle, Title } from '@/components/ui';
 import { LineChart, type ChartPoint } from '@/components/LineChart';
-import { colors, radius, spacing } from '@/constants/theme';
+import { useTheme, useThemedStyles } from '@/lib/useTheme';
+import { radius, spacing, type Palette } from '@/constants/theme';
 import { entryBestE1RM, useLogStore } from '@/store/useLogStore';
 import { useActiveProfile } from '@/store/useProfileStore';
 import { useSettingsStore } from '@/store/useSettingsStore';
@@ -10,6 +11,8 @@ import { kgToDisplay } from '@/lib/units';
 
 // Progress — visualizes logged numbers (est. 1RM trend per tracked exercise).
 export default function Progress() {
+  const { palette: c } = useTheme();
+  const styles = useThemedStyles(makeStyles);
   const router = useRouter();
   const active = useActiveProfile();
   const maxes = active?.profile.history?.maxes;
@@ -22,7 +25,7 @@ export default function Progress() {
     .sort();
 
   return (
-    <ScrollView style={{ backgroundColor: colors.bg }} contentContainerStyle={{ padding: spacing.lg, gap: spacing.lg }}>
+    <ScrollView style={{ backgroundColor: c.bg }} contentContainerStyle={{ padding: spacing.lg, gap: spacing.lg }}>
       <View>
         <Title>Progress</Title>
         <Subtitle>Estimated 1RM trends from your logged sets.</Subtitle>
@@ -87,33 +90,33 @@ export default function Progress() {
   );
 }
 
-const styles = StyleSheet.create({
-  section: { color: colors.accent, fontSize: 12, fontWeight: '800', letterSpacing: 1 },
+const makeStyles = (c: Palette) => StyleSheet.create({
+  section: { color: c.accent, fontSize: 12, fontWeight: '800', letterSpacing: 1 },
   statRow: { flexDirection: 'row', gap: spacing.sm },
   stat: {
     flex: 1,
-    backgroundColor: colors.surface,
+    backgroundColor: c.surface,
     borderRadius: radius.md,
     borderWidth: 1,
-    borderColor: colors.border,
+    borderColor: c.border,
     padding: spacing.md,
     alignItems: 'center',
   },
-  statLift: { color: colors.textMuted, fontSize: 12, textTransform: 'capitalize' },
-  statVal: { color: colors.text, fontSize: 22, fontWeight: '800', marginTop: 2 },
-  statUnit: { color: colors.textMuted, fontSize: 11 },
+  statLift: { color: c.textMuted, fontSize: 12, textTransform: 'capitalize' },
+  statVal: { color: c.text, fontSize: 22, fontWeight: '800', marginTop: 2 },
+  statUnit: { color: c.textMuted, fontSize: 11 },
   card: {
-    backgroundColor: colors.surface,
+    backgroundColor: c.surface,
     borderRadius: radius.md,
     borderWidth: 1,
-    borderColor: colors.border,
+    borderColor: c.border,
     padding: spacing.md,
     gap: spacing.sm,
   },
   cardHead: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', gap: spacing.sm },
   headRight: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
-  cardTitle: { color: colors.text, fontSize: 16, fontWeight: '700', flexShrink: 1 },
-  best: { color: colors.text, fontWeight: '700' },
-  count: { color: colors.textMuted, fontSize: 12 },
-  empty: { color: colors.textMuted, lineHeight: 20 },
+  cardTitle: { color: c.text, fontSize: 16, fontWeight: '700', flexShrink: 1 },
+  best: { color: c.text, fontWeight: '700' },
+  count: { color: c.textMuted, fontSize: 12 },
+  empty: { color: c.textMuted, lineHeight: 20 },
 });

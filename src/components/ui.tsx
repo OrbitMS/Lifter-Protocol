@@ -7,26 +7,33 @@ import {
   TextInputProps,
   View,
 } from 'react-native';
-import { colors, radius, shadow, spacing, typography } from '@/constants/theme';
+import * as haptics from '@/lib/haptics';
+import { useTheme, useThemedStyles } from '@/lib/useTheme';
+import { radius, shadow, spacing, typography, type Palette } from '@/constants/theme';
 
 export function Screen({ children }: { children: ReactNode }) {
+  const styles = useThemedStyles(makeStyles);
   return <View style={styles.screen}>{children}</View>;
 }
 
 export function Title({ children }: { children: ReactNode }) {
+  const styles = useThemedStyles(makeStyles);
   return <Text style={styles.title}>{children}</Text>;
 }
 
 export function Subtitle({ children }: { children: ReactNode }) {
+  const styles = useThemedStyles(makeStyles);
   return <Text style={styles.subtitle}>{children}</Text>;
 }
 
 export function Label({ children }: { children: ReactNode }) {
+  const styles = useThemedStyles(makeStyles);
   return <Text style={styles.label}>{children}</Text>;
 }
 
-/** Brand wordmark — "LIFTER" in foreground, "PROTOCOL" in the sky-blue accent. */
+/** Brand wordmark — "LIFTER" in foreground, "PROTOCOL" in the accent. */
 export function Wordmark({ size = 20 }: { size?: number }) {
+  const styles = useThemedStyles(makeStyles);
   return (
     <Text style={[styles.wordmark, { fontSize: size }]}>
       LIFTER<Text style={styles.wordmarkAccent}> PROTOCOL</Text>
@@ -38,6 +45,7 @@ type BadgeTone = 'neutral' | 'accent' | 'success' | 'warn';
 
 /** Pill status badge matching the design language (neutral / accent / success / warn). */
 export function Badge({ label, tone = 'neutral' }: { label: string; tone?: BadgeTone }) {
+  const styles = useThemedStyles(makeStyles);
   return (
     <View style={[styles.badge, styles[`badge_${tone}`]]}>
       {tone !== 'neutral' ? <View style={[styles.dot, styles[`dot_${tone}`]]} /> : null}
@@ -51,6 +59,7 @@ export function Badge({ label, tone = 'neutral' }: { label: string; tone?: Badge
  * the athlete's answer affects their training plan.
  */
 export function InfoLabel({ children, help }: { children: ReactNode; help: string }) {
+  const styles = useThemedStyles(makeStyles);
   const [open, setOpen] = useState(false);
   return (
     <View style={{ gap: spacing.xs }}>
@@ -76,6 +85,7 @@ export function InfoLabel({ children, help }: { children: ReactNode; help: strin
 }
 
 export function ProgressBar({ step, total }: { step: number; total: number }) {
+  const styles = useThemedStyles(makeStyles);
   const pct = Math.max(0, Math.min(1, total ? step / total : 0)) * 100;
   return (
     <View style={styles.progressTrack}>
@@ -93,9 +103,13 @@ export function PrimaryButton({
   onPress: () => void;
   disabled?: boolean;
 }) {
+  const styles = useThemedStyles(makeStyles);
   return (
     <Pressable
-      onPress={onPress}
+      onPress={() => {
+        haptics.tap();
+        onPress();
+      }}
       disabled={disabled}
       style={({ pressed }) => [
         styles.button,
@@ -120,9 +134,13 @@ export function OptionCard({
   selected: boolean;
   onPress: () => void;
 }) {
+  const styles = useThemedStyles(makeStyles);
   return (
     <Pressable
-      onPress={onPress}
+      onPress={() => {
+        haptics.select();
+        onPress();
+      }}
       style={({ pressed }) => [
         styles.card,
         shadow.card,
@@ -144,10 +162,12 @@ export function OptionCard({
 }
 
 export function Field(props: TextInputProps) {
+  const styles = useThemedStyles(makeStyles);
+  const { palette: c } = useTheme();
   const [focused, setFocused] = useState(false);
   return (
     <TextInput
-      placeholderTextColor={colors.textFaint}
+      placeholderTextColor={c.textFaint}
       {...props}
       onFocus={(e) => {
         setFocused(true);
@@ -162,112 +182,113 @@ export function Field(props: TextInputProps) {
   );
 }
 
-const styles = StyleSheet.create({
-  screen: {
-    flex: 1,
-    backgroundColor: colors.bg,
-    padding: spacing.lg,
-    gap: spacing.md,
-  },
-  title: { ...typography.title },
-  subtitle: { ...typography.subtitle },
-  label: { ...typography.label, marginBottom: spacing.xs },
-  labelInline: { ...typography.label },
-  infoRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
-  helpDot: {
-    width: 18,
-    height: 18,
-    borderRadius: 9,
-    borderWidth: 1,
-    borderColor: colors.textMuted,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  helpDotOpen: { borderColor: colors.accent, backgroundColor: colors.accentSoft },
-  helpMark: { color: colors.textMuted, fontSize: 12, fontWeight: '800', lineHeight: 14 },
-  helpMarkOpen: { color: colors.accent },
-  helpBox: {
-    backgroundColor: colors.surfaceAlt,
-    borderRadius: radius.sm,
-    padding: spacing.sm,
-    borderWidth: 1,
-    borderColor: colors.border,
-  },
-  helpText: { color: colors.textMuted, fontSize: 13, lineHeight: 19 },
-  progressTrack: {
-    height: 8,
-    backgroundColor: colors.surfaceAlt,
-    borderRadius: radius.pill,
-    overflow: 'hidden',
-  },
-  progressFill: { height: 8, backgroundColor: colors.accent, borderRadius: radius.pill },
-  wordmark: { color: colors.text, fontWeight: '900', letterSpacing: 0.5 },
-  wordmarkAccent: { color: colors.accent },
-  badge: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 5,
-    alignSelf: 'flex-start',
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-    borderRadius: radius.pill,
-    borderWidth: 1,
-  },
-  badge_neutral: { backgroundColor: colors.surfaceAlt, borderColor: colors.border },
-  badge_accent: { backgroundColor: colors.accentSoft, borderColor: colors.accentBorder },
-  badge_success: { backgroundColor: colors.successSoft, borderColor: colors.success },
-  badge_warn: { backgroundColor: '#3A2A0F80', borderColor: colors.warning },
-  dot: { width: 6, height: 6, borderRadius: 3 },
-  dot_neutral: { backgroundColor: colors.textMuted },
-  dot_accent: { backgroundColor: colors.accent },
-  dot_success: { backgroundColor: colors.success },
-  dot_warn: { backgroundColor: colors.warning },
-  badgeText: { fontSize: 11, fontWeight: '800', letterSpacing: 0.4, textTransform: 'uppercase' },
-  badgeText_neutral: { color: colors.textMuted },
-  badgeText_accent: { color: colors.accent },
-  badgeText_success: { color: colors.success },
-  badgeText_warn: { color: colors.warning },
-  button: {
-    backgroundColor: colors.accent,
-    paddingVertical: spacing.md,
-    borderRadius: radius.pill,
-    alignItems: 'center',
-    marginTop: 'auto',
-  },
-  buttonPressed: { backgroundColor: colors.accentBright, transform: [{ scale: 0.985 }] },
-  buttonDisabled: { backgroundColor: colors.surfaceAlt },
-  buttonText: { color: colors.onAccent, fontSize: 16, fontWeight: '800', letterSpacing: 0.2 },
-  buttonTextDisabled: { color: colors.textFaint },
-  card: {
-    backgroundColor: colors.surface,
-    borderRadius: radius.md,
-    padding: spacing.md,
-    borderWidth: 1,
-    borderColor: colors.border,
-    gap: spacing.xs,
-  },
-  cardPressed: { backgroundColor: colors.surfaceHover, borderColor: colors.borderStrong },
-  cardSelected: { borderColor: colors.accent, backgroundColor: colors.accentSoft },
-  cardHead: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: spacing.sm },
-  cardTitle: { color: colors.text, fontSize: 17, fontWeight: '700', flexShrink: 1 },
-  cardDesc: { color: colors.textMuted, fontSize: 13, lineHeight: 18 },
-  check: {
-    width: 22,
-    height: 22,
-    borderRadius: 11,
-    backgroundColor: colors.accent,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  checkMark: { color: colors.onAccent, fontSize: 13, fontWeight: '900', lineHeight: 15 },
-  input: {
-    backgroundColor: colors.surface,
-    borderWidth: 1,
-    borderColor: colors.border,
-    borderRadius: radius.md,
-    padding: spacing.md,
-    color: colors.text,
-    fontSize: 16,
-  },
-  inputFocused: { borderColor: colors.accent, backgroundColor: colors.bgElevated },
-});
+const makeStyles = (c: Palette) =>
+  StyleSheet.create({
+    screen: {
+      flex: 1,
+      backgroundColor: c.bg,
+      padding: spacing.lg,
+      gap: spacing.md,
+    },
+    title: { ...typography.title, color: c.text },
+    subtitle: { ...typography.subtitle, color: c.textMuted },
+    label: { ...typography.label, color: c.text, marginBottom: spacing.xs },
+    labelInline: { ...typography.label, color: c.text },
+    infoRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
+    helpDot: {
+      width: 18,
+      height: 18,
+      borderRadius: 9,
+      borderWidth: 1,
+      borderColor: c.textMuted,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    helpDotOpen: { borderColor: c.accent, backgroundColor: c.accentSoft },
+    helpMark: { color: c.textMuted, fontSize: 12, fontWeight: '800', lineHeight: 14 },
+    helpMarkOpen: { color: c.accent },
+    helpBox: {
+      backgroundColor: c.surfaceAlt,
+      borderRadius: radius.sm,
+      padding: spacing.sm,
+      borderWidth: 1,
+      borderColor: c.border,
+    },
+    helpText: { color: c.textMuted, fontSize: 13, lineHeight: 19 },
+    progressTrack: {
+      height: 8,
+      backgroundColor: c.surfaceAlt,
+      borderRadius: radius.pill,
+      overflow: 'hidden',
+    },
+    progressFill: { height: 8, backgroundColor: c.accent, borderRadius: radius.pill },
+    wordmark: { color: c.text, fontWeight: '900', letterSpacing: 0.5 },
+    wordmarkAccent: { color: c.accent },
+    badge: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 5,
+      alignSelf: 'flex-start',
+      paddingHorizontal: 10,
+      paddingVertical: 4,
+      borderRadius: radius.pill,
+      borderWidth: 1,
+    },
+    badge_neutral: { backgroundColor: c.surfaceAlt, borderColor: c.border },
+    badge_accent: { backgroundColor: c.accentSoft, borderColor: c.accentBorder },
+    badge_success: { backgroundColor: c.successSoft, borderColor: c.success },
+    badge_warn: { backgroundColor: c.warning + '22', borderColor: c.warning },
+    dot: { width: 6, height: 6, borderRadius: 3 },
+    dot_neutral: { backgroundColor: c.textMuted },
+    dot_accent: { backgroundColor: c.accent },
+    dot_success: { backgroundColor: c.success },
+    dot_warn: { backgroundColor: c.warning },
+    badgeText: { fontSize: 11, fontWeight: '800', letterSpacing: 0.4, textTransform: 'uppercase' },
+    badgeText_neutral: { color: c.textMuted },
+    badgeText_accent: { color: c.accent },
+    badgeText_success: { color: c.success },
+    badgeText_warn: { color: c.warning },
+    button: {
+      backgroundColor: c.accent,
+      paddingVertical: spacing.md,
+      borderRadius: radius.pill,
+      alignItems: 'center',
+      marginTop: 'auto',
+    },
+    buttonPressed: { backgroundColor: c.accentBright, transform: [{ scale: 0.985 }] },
+    buttonDisabled: { backgroundColor: c.surfaceAlt },
+    buttonText: { color: c.onAccent, fontSize: 16, fontWeight: '800', letterSpacing: 0.2 },
+    buttonTextDisabled: { color: c.textFaint },
+    card: {
+      backgroundColor: c.surface,
+      borderRadius: radius.md,
+      padding: spacing.md,
+      borderWidth: 1,
+      borderColor: c.border,
+      gap: spacing.xs,
+    },
+    cardPressed: { backgroundColor: c.surfaceHover, borderColor: c.borderStrong },
+    cardSelected: { borderColor: c.accent, backgroundColor: c.accentSoft },
+    cardHead: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: spacing.sm },
+    cardTitle: { color: c.text, fontSize: 17, fontWeight: '700', flexShrink: 1 },
+    cardDesc: { color: c.textMuted, fontSize: 13, lineHeight: 18 },
+    check: {
+      width: 22,
+      height: 22,
+      borderRadius: 11,
+      backgroundColor: c.accent,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    checkMark: { color: c.onAccent, fontSize: 13, fontWeight: '900', lineHeight: 15 },
+    input: {
+      backgroundColor: c.surface,
+      borderWidth: 1,
+      borderColor: c.border,
+      borderRadius: radius.md,
+      padding: spacing.md,
+      color: c.text,
+      fontSize: 16,
+    },
+    inputFocused: { borderColor: c.accent, backgroundColor: c.bgElevated },
+  });

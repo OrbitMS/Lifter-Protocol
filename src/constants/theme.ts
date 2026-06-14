@@ -73,6 +73,13 @@ export const lightColors = {
   danger: '#E5484D',
 };
 
+/** All palettes share the same keys; screens read the active one via useTheme(). */
+export type Palette = typeof colors;
+export const palettes: Record<'dark' | 'light', Palette> = {
+  dark: colors,
+  light: lightColors,
+};
+
 export const spacing = {
   xs: 4,
   sm: 8,

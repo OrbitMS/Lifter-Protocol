@@ -2,13 +2,15 @@ import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { useEffect, useMemo, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { Field, PrimaryButton, Subtitle, Title } from '@/components/ui';
-import { colors, radius, spacing } from '@/constants/theme';
+import { useTheme, useThemedStyles } from '@/lib/useTheme';
+import { radius, spacing, type Palette } from '@/constants/theme';
 import { adjustForLift } from '@/engine/autoregulation';
 import { flattenDays } from '@/lib/days';
+import * as haptics from '@/lib/haptics';
 import { exerciseLoad, roundLoad, warmupSets, type MainLift, type TrainingMaxes } from '@/lib/load';
-import { baseExerciseName } from '@/lib/metrics';
+import { baseExerciseName, estimate1RM } from '@/lib/metrics';
 import { fmtWeight, kgToDisplay, displayToKg } from '@/lib/units';
-import { useLogStore, type LoggedSet } from '@/store/useLogStore';
+import { entryBestE1RM, useLogStore, type LoggedSet } from '@/store/useLogStore';
 import { useSettingsStore } from '@/store/useSettingsStore';
 import {
   effectiveTrainingMaxes,
@@ -27,6 +29,8 @@ function restSeconds(role?: string): number {
 }
 
 export default function Workout() {
+  const { palette: c } = useTheme();
+  const styles = useThemedStyles(makeStyles);
   const router = useRouter();
   const params = useLocalSearchParams<{ day?: string }>();
   const dayIndex = Number(params.day ?? 0) || 0;
@@ -58,6 +62,11 @@ export default function Workout() {
   const [now, setNow] = useState(Date.now());
   const [done, setDone] = useState(false);
   const [summary, setSummary] = useState<string[]>([]);
+  // set indices (per exercise) that beat the all-time est-1RM, + a transient banner
+  const [prSets, setPrSets] = useState<Record<number, number[]>>({});
+  const [prFlash, setPrFlash] = useState<number | null>(null);
+
+  const allLogs = useLogStore((s) => s.logs);
 
   useEffect(() => {
     const id = setInterval(() => setNow(Date.now()), 500);
@@ -77,7 +86,7 @@ export default function Workout() {
 
   if (!active || !day || !ex) {
     return (
-      <View style={{ flex: 1, backgroundColor: colors.bg, padding: spacing.lg }}>
+      <View style={{ flex: 1, backgroundColor: c.bg, padding: spacing.lg }}>
         <Stack.Screen options={{ title: 'Workout', headerShown: true }} />
         <Title>No session</Title>
         <Subtitle>Start a workout from the Today tab.</Subtitle>
@@ -90,15 +99,32 @@ export default function Workout() {
   const targetLoad = exerciseLoad(ex, tms);
   const warmups = targetLoad ? warmupSets(targetLoad) : [];
 
+  // all-time best estimated-1RM for this lift, used to detect PRs as sets are logged
+  const exKey = baseExerciseName(display(current));
+  const histBest = (allLogs[active.id]?.[exKey] ?? []).reduce((m, e) => Math.max(m, entryBestE1RM(e)), 0);
+  const curPRs = prSets[current] ?? [];
+
   const logSet = () => {
     const w = Number(weight);
     const r = Number(reps);
     if (!w || !r) return;
     // inputs are in the display unit — store kg
     const kg = roundLoad(displayToKg(w, units));
+    const e1 = estimate1RM(kg, r);
+    const sessionBest = curSets.reduce((m, s) => Math.max(m, estimate1RM(s.weight, s.reps)), 0);
+    const isPR = e1 > 0 && e1 > Math.max(histBest, sessionBest);
+    const newIndex = curSets.length;
     setLogged((m) => ({ ...m, [current]: [...(m[current] ?? []), { weight: kg, reps: r, rpe: rpe ? Number(rpe) : undefined }] }));
     setRpe('');
     setRestUntil(Date.now() + restSeconds(ex.role) * 1000);
+    if (isPR) {
+      setPrSets((p) => ({ ...p, [current]: [...(p[current] ?? []), newIndex] }));
+      setPrFlash(kgToDisplay(e1, units));
+      setTimeout(() => setPrFlash(null), 4000);
+      haptics.celebrate();
+    } else {
+      haptics.tap();
+    }
   };
 
   const finish = () => {
@@ -129,11 +155,12 @@ export default function Workout() {
     finishWorkout(dayIndex, newTMs);
     setSummary(notes);
     setDone(true);
+    haptics.celebrate();
   };
 
   if (done) {
     return (
-      <ScrollView style={{ backgroundColor: colors.bg }} contentContainerStyle={{ padding: spacing.lg, gap: spacing.md, flexGrow: 1 }}>
+      <ScrollView style={{ backgroundColor: c.bg }} contentContainerStyle={{ padding: spacing.lg, gap: spacing.md, flexGrow: 1 }}>
         <Stack.Screen options={{ title: 'Workout complete', headerShown: true }} />
         <Title>Nice work 💪</Title>
         <Subtitle>Logged {Object.values(logged).reduce((n, s) => n + s.length, 0)} sets across {Object.keys(logged).length} exercises.</Subtitle>
@@ -157,7 +184,7 @@ export default function Workout() {
   const isLast = current === exercises.length - 1;
 
   return (
-    <View style={{ flex: 1, backgroundColor: colors.bg }}>
+    <View style={{ flex: 1, backgroundColor: c.bg }}>
       <Stack.Screen options={{ title: `${day.session.label}`, headerShown: true }} />
       <ScrollView contentContainerStyle={{ padding: spacing.lg, gap: spacing.md }}>
         <Text style={styles.counter}>Exercise {current + 1} of {exercises.length} · {day.phase}</Text>
@@ -194,10 +221,19 @@ export default function Workout() {
           </View>
         ) : null}
 
+        {prFlash != null ? (
+          <View style={styles.prBanner}>
+            <Text style={styles.prBannerText}>🏆 NEW PR!  est. {prFlash} {units} 1RM</Text>
+          </View>
+        ) : null}
+
         {/* logged sets */}
         {curSets.map((s, i) => (
-          <View key={i} style={styles.setRow}>
-            <Text style={styles.setText}>Set {i + 1}: {fmtWeight(s.weight, units)} × {s.reps}{s.rpe ? ` @ RPE ${s.rpe}` : ''}</Text>
+          <View key={i} style={[styles.setRow, curPRs.includes(i) && styles.setRowPR]}>
+            <Text style={styles.setText}>
+              Set {i + 1}: {fmtWeight(s.weight, units)} × {s.reps}{s.rpe ? ` @ RPE ${s.rpe}` : ''}
+              {curPRs.includes(i) ? <Text style={styles.prTag}>  🏆 PR</Text> : null}
+            </Text>
             <Pressable onPress={() => setLogged((m) => ({ ...m, [current]: (m[current] ?? []).filter((_, j) => j !== i) }))}>
               <Text style={styles.del}>✕</Text>
             </Pressable>
@@ -234,7 +270,7 @@ export default function Workout() {
           </Pressable>
           {isLast ? (
             <Pressable style={[styles.navBtn, styles.finishBtn]} onPress={finish}>
-              <Text style={[styles.navText, { color: colors.bg }]}>Finish workout</Text>
+              <Text style={[styles.navText, { color: c.bg }]}>Finish workout</Text>
             </Pressable>
           ) : (
             <Pressable style={styles.navBtn} onPress={() => setCurrent((c) => Math.min(exercises.length - 1, c + 1))}>
@@ -247,62 +283,74 @@ export default function Workout() {
   );
 }
 
-const styles = StyleSheet.create({
-  counter: { color: colors.textMuted, fontSize: 12, fontWeight: '700', letterSpacing: 1, textTransform: 'uppercase' },
-  section: { color: colors.accent, fontSize: 12, fontWeight: '800', letterSpacing: 1 },
-  lbl: { color: colors.textMuted, fontSize: 13, fontWeight: '600', marginBottom: spacing.xs },
+const makeStyles = (c: Palette) => StyleSheet.create({
+  counter: { color: c.textMuted, fontSize: 12, fontWeight: '700', letterSpacing: 1, textTransform: 'uppercase' },
+  section: { color: c.accent, fontSize: 12, fontWeight: '800', letterSpacing: 1 },
+  lbl: { color: c.textMuted, fontSize: 13, fontWeight: '600', marginBottom: spacing.xs },
   warmup: {
-    backgroundColor: colors.surface,
+    backgroundColor: c.surface,
     borderRadius: radius.md,
     borderWidth: 1,
-    borderColor: colors.border,
+    borderColor: c.border,
     padding: spacing.md,
     gap: 2,
   },
-  warmupTitle: { color: colors.textMuted, fontSize: 11, fontWeight: '800', letterSpacing: 1, marginBottom: 2 },
-  warmupRow: { color: colors.text },
-  warmupNote: { color: colors.textMuted, fontSize: 12, fontStyle: 'italic', marginTop: 4 },
+  warmupTitle: { color: c.textMuted, fontSize: 11, fontWeight: '800', letterSpacing: 1, marginBottom: 2 },
+  warmupRow: { color: c.text },
+  warmupNote: { color: c.textMuted, fontSize: 12, fontStyle: 'italic', marginTop: 4 },
   rest: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    backgroundColor: colors.accentSoft,
+    backgroundColor: c.accentSoft,
     borderWidth: 1,
-    borderColor: colors.accent,
+    borderColor: c.accent,
     borderRadius: radius.md,
     padding: spacing.md,
   },
-  restText: { color: colors.text, fontSize: 20, fontWeight: '800' },
-  restBtn: { borderWidth: 1, borderColor: colors.accent, borderRadius: radius.sm, paddingHorizontal: spacing.sm, paddingVertical: 4 },
-  restBtnText: { color: colors.accent, fontWeight: '700' },
+  restText: { color: c.text, fontSize: 20, fontWeight: '800' },
+  restBtn: { borderWidth: 1, borderColor: c.accent, borderRadius: radius.sm, paddingHorizontal: spacing.sm, paddingVertical: 4 },
+  restBtnText: { color: c.accent, fontWeight: '700' },
   setRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    backgroundColor: colors.surface,
+    backgroundColor: c.surface,
     borderRadius: radius.sm,
     paddingHorizontal: spacing.md,
     paddingVertical: spacing.sm,
     borderWidth: 1,
-    borderColor: colors.border,
+    borderColor: c.border,
   },
-  setText: { color: colors.text },
-  del: { color: colors.textMuted, fontSize: 16 },
-  logBtn: { borderWidth: 1, borderColor: colors.accent, borderRadius: radius.md, paddingVertical: spacing.md, alignItems: 'center' },
-  logBtnText: { color: colors.accent, fontWeight: '800', fontSize: 16 },
+  setText: { color: c.text, flexShrink: 1 },
+  setRowPR: { borderColor: c.success, backgroundColor: c.successSoft },
+  prTag: { color: c.success, fontWeight: '800' },
+  del: { color: c.textMuted, fontSize: 16 },
+  prBanner: {
+    backgroundColor: c.successSoft,
+    borderColor: c.success,
+    borderWidth: 1,
+    borderRadius: radius.md,
+    paddingVertical: spacing.sm,
+    paddingHorizontal: spacing.md,
+    alignItems: 'center',
+  },
+  prBannerText: { color: c.success, fontWeight: '800', fontSize: 15, letterSpacing: 0.3 },
+  logBtn: { borderWidth: 1, borderColor: c.accent, borderRadius: radius.md, paddingVertical: spacing.md, alignItems: 'center' },
+  logBtnText: { color: c.accent, fontWeight: '800', fontSize: 16 },
   navBtn: {
     flex: 1,
-    backgroundColor: colors.surface,
+    backgroundColor: c.surface,
     borderWidth: 1,
-    borderColor: colors.border,
+    borderColor: c.border,
     borderRadius: radius.md,
     paddingVertical: spacing.md,
     alignItems: 'center',
   },
   navOff: { opacity: 0.4 },
-  navText: { color: colors.text, fontWeight: '700' },
-  finishBtn: { backgroundColor: colors.accent, borderColor: colors.accent },
-  adjCard: { backgroundColor: colors.surface, borderRadius: radius.md, padding: spacing.md, borderLeftWidth: 4, borderLeftColor: colors.success },
-  adjText: { color: colors.text, lineHeight: 20 },
-  note: { color: colors.textMuted, fontStyle: 'italic' },
+  navText: { color: c.text, fontWeight: '700' },
+  finishBtn: { backgroundColor: c.accent, borderColor: c.accent },
+  adjCard: { backgroundColor: c.surface, borderRadius: radius.md, padding: spacing.md, borderLeftWidth: 4, borderLeftColor: c.success },
+  adjText: { color: c.text, lineHeight: 20 },
+  note: { color: c.textMuted, fontStyle: 'italic' },
 });

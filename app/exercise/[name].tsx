@@ -3,7 +3,8 @@ import { useState } from 'react';
 import { Linking, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { Field, Label, PrimaryButton, Subtitle } from '@/components/ui';
 import { LineChart, type ChartPoint } from '@/components/LineChart';
-import { colors, radius, spacing } from '@/constants/theme';
+import { useTheme, useThemedStyles } from '@/lib/useTheme';
+import { radius, spacing, type Palette } from '@/constants/theme';
 import { PATTERNS, getExerciseInfo, photosUrl, videoUrl } from '@/constants/exerciseInfo';
 import { alternativesFor } from '@/engine/exercises';
 import { baseExerciseName } from '@/lib/metrics';
@@ -14,6 +15,8 @@ import { useActiveProfile, useProfileStore } from '@/store/useProfileStore';
 import { useSettingsStore } from '@/store/useSettingsStore';
 
 export default function ExerciseDetail() {
+  const { palette: c } = useTheme();
+  const styles = useThemedStyles(makeStyles);
   const params = useLocalSearchParams<{ name: string; target?: string; slot?: string; peers?: string }>();
   const slot = typeof params.slot === 'string' ? params.slot : undefined;
   const peers = typeof params.peers === 'string' ? params.peers.split('|').filter(Boolean) : [];
@@ -78,7 +81,7 @@ export default function ExerciseDetail() {
   return (
     <>
       <Stack.Screen options={{ title: info.name, headerShown: true }} />
-      <ScrollView style={{ backgroundColor: colors.bg }} contentContainerStyle={{ padding: spacing.lg, gap: spacing.lg }}>
+      <ScrollView style={{ backgroundColor: c.bg }} contentContainerStyle={{ padding: spacing.lg, gap: spacing.lg }}>
         <View style={[styles.banner, { backgroundColor: meta.color + '22', borderColor: meta.color }]}>
           <Text style={styles.bannerEmoji}>{info.emoji}</Text>
           <View style={{ flex: 1 }}>
@@ -115,7 +118,7 @@ export default function ExerciseDetail() {
                   .filter((alt) => alt === currentName || !peers.includes(alt))
                   .map((alt) => (
                   <Pressable key={alt} style={styles.altRow} onPress={() => swapTo(alt)}>
-                    <Text style={[styles.altName, alt === currentName && { color: colors.accent }]}>
+                    <Text style={[styles.altName, alt === currentName && { color: c.accent }]}>
                       {alt}
                     </Text>
                     {alt === currentName ? <Text style={styles.altCur}>current</Text> : null}
@@ -123,7 +126,7 @@ export default function ExerciseDetail() {
                 ))}
                 {isSwapped && (
                   <Pressable style={styles.altRow} onPress={resetSwap}>
-                    <Text style={[styles.altName, { color: colors.textMuted }]}>↺ Reset to {slot}</Text>
+                    <Text style={[styles.altName, { color: c.textMuted }]}>↺ Reset to {slot}</Text>
                   </Pressable>
                 )}
               </View>
@@ -210,7 +213,7 @@ export default function ExerciseDetail() {
   );
 }
 
-const styles = StyleSheet.create({
+const makeStyles = (c: Palette) => StyleSheet.create({
   banner: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -220,42 +223,42 @@ const styles = StyleSheet.create({
     padding: spacing.md,
   },
   bannerEmoji: { fontSize: 40 },
-  bannerTitle: { color: colors.text, fontSize: 18, fontWeight: '700' },
-  bannerSub: { color: colors.textMuted, fontSize: 13, marginTop: 2 },
-  section: { color: colors.accent, fontSize: 12, fontWeight: '800', letterSpacing: 1 },
+  bannerTitle: { color: c.text, fontSize: 18, fontWeight: '700' },
+  bannerSub: { color: c.textMuted, fontSize: 13, marginTop: 2 },
+  section: { color: c.accent, fontSize: 12, fontWeight: '800', letterSpacing: 1 },
   linkBtn: {
     flex: 1,
-    backgroundColor: colors.surface,
+    backgroundColor: c.surface,
     borderWidth: 1,
-    borderColor: colors.border,
+    borderColor: c.border,
     borderRadius: radius.md,
     paddingVertical: spacing.sm,
     alignItems: 'center',
   },
-  linkText: { color: colors.text, fontWeight: '600' },
+  linkText: { color: c.text, fontWeight: '600' },
   swapBtn: {
     borderWidth: 1,
-    borderColor: colors.accent,
+    borderColor: c.accent,
     borderRadius: radius.md,
     paddingVertical: spacing.sm,
     alignItems: 'center',
   },
-  swapBtnText: { color: colors.accent, fontWeight: '700' },
-  swapHint: { color: colors.textMuted, fontSize: 13, marginBottom: spacing.xs },
+  swapBtnText: { color: c.accent, fontWeight: '700' },
+  swapHint: { color: c.textMuted, fontSize: 13, marginBottom: spacing.xs },
   altRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
     paddingVertical: spacing.sm,
     borderTopWidth: 1,
-    borderTopColor: colors.border,
+    borderTopColor: c.border,
   },
-  altName: { color: colors.text, fontSize: 15 },
-  altCur: { color: colors.accent, fontSize: 11, fontWeight: '700' },
+  altName: { color: c.text, fontSize: 15 },
+  altCur: { color: c.accent, fontSize: 11, fontWeight: '700' },
   step: { flexDirection: 'row', gap: spacing.sm, alignItems: 'flex-start' },
   stepNum: {
-    color: colors.bg,
-    backgroundColor: colors.accent,
+    color: c.bg,
+    backgroundColor: c.accent,
     fontWeight: '800',
     fontSize: 12,
     width: 20,
@@ -265,28 +268,28 @@ const styles = StyleSheet.create({
     lineHeight: 20,
     overflow: 'hidden',
   },
-  stepText: { color: colors.text, flex: 1, lineHeight: 21 },
-  cue: { color: colors.textMuted, lineHeight: 21 },
+  stepText: { color: c.text, flex: 1, lineHeight: 21 },
+  cue: { color: c.textMuted, lineHeight: 21 },
   card: {
-    backgroundColor: colors.surface,
+    backgroundColor: c.surface,
     borderRadius: radius.md,
     padding: spacing.md,
     borderWidth: 1,
-    borderColor: colors.border,
+    borderColor: c.border,
     gap: 2,
   },
   addSet: {
     borderWidth: 1,
-    borderColor: colors.accent,
+    borderColor: c.accent,
     borderRadius: radius.md,
     paddingVertical: spacing.sm,
     alignItems: 'center',
   },
-  addSetText: { color: colors.accent, fontWeight: '700' },
-  draftSet: { color: colors.text },
+  addSetText: { color: c.accent, fontWeight: '700' },
+  draftSet: { color: c.text },
   histHead: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 4 },
-  histDate: { color: colors.text, fontWeight: '700' },
-  del: { color: colors.textMuted, fontSize: 12 },
-  histSet: { color: colors.textMuted },
-  histE1rm: { color: colors.success, fontWeight: '700', marginTop: 4 },
+  histDate: { color: c.text, fontWeight: '700' },
+  del: { color: c.textMuted, fontSize: 12 },
+  histSet: { color: c.textMuted },
+  histE1rm: { color: c.success, fontWeight: '700', marginTop: 4 },
 });

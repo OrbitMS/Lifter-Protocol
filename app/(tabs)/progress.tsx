@@ -1,6 +1,6 @@
 import { useRouter } from 'expo-router';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
-import { Subtitle, Title } from '@/components/ui';
+import { Badge, Subtitle, Title } from '@/components/ui';
 import { LineChart, type ChartPoint } from '@/components/LineChart';
 import { colors, radius, spacing } from '@/constants/theme';
 import { entryBestE1RM, useLogStore } from '@/store/useLogStore';
@@ -71,10 +71,10 @@ export default function Progress() {
               >
                 <View style={styles.cardHead}>
                   <Text style={styles.cardTitle}>{name}</Text>
-                  <Text style={styles.best}>
-                    {best} {units}
-                    {delta > 0 ? <Text style={styles.up}>  ▲{delta}</Text> : null}
-                  </Text>
+                  <View style={styles.headRight}>
+                    <Text style={styles.best}>{best} {units}</Text>
+                    {delta > 0 ? <Badge label={`▲ ${delta}`} tone="success" /> : null}
+                  </View>
                 </View>
                 <LineChart data={data} />
                 <Text style={styles.count}>{entries.length} session{entries.length === 1 ? '' : 's'} logged</Text>
@@ -110,10 +110,10 @@ const styles = StyleSheet.create({
     padding: spacing.md,
     gap: spacing.sm,
   },
-  cardHead: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
+  cardHead: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', gap: spacing.sm },
+  headRight: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
   cardTitle: { color: colors.text, fontSize: 16, fontWeight: '700', flexShrink: 1 },
   best: { color: colors.text, fontWeight: '700' },
-  up: { color: colors.success, fontWeight: '700' },
   count: { color: colors.textMuted, fontSize: 12 },
   empty: { color: colors.textMuted, lineHeight: 20 },
 });

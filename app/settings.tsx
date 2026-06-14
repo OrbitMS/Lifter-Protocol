@@ -94,7 +94,7 @@ export default function Settings() {
           <Field value={exportJson()} editable={false} multiline numberOfLines={8} style={styles.export} />
         ) : null}
         <Pressable style={[styles.btn, styles.danger]} onPress={wipe}>
-          <Text style={[styles.btnText, { color: colors.accent }]}>Wipe all data</Text>
+          <Text style={[styles.btnText, { color: colors.danger }]}>Wipe all data</Text>
         </Pressable>
       </View>
 
@@ -113,6 +113,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   btnText: { color: colors.text, fontWeight: '700' },
-  danger: { borderColor: colors.accent },
+  danger: { borderColor: colors.danger },
   export: { minHeight: 160, fontSize: 11, textAlignVertical: 'top' },
 });

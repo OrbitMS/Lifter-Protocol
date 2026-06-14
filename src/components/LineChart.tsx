@@ -1,5 +1,15 @@
+import { useId } from 'react';
 import { View } from 'react-native';
-import Svg, { Circle, Line, Polyline, Text as SvgText } from 'react-native-svg';
+import Svg, {
+  Circle,
+  Defs,
+  Line,
+  LinearGradient,
+  Polygon,
+  Polyline,
+  Stop,
+  Text as SvgText,
+} from 'react-native-svg';
 import { colors } from '@/constants/theme';
 
 export interface ChartPoint {
@@ -45,10 +55,21 @@ export function LineChart({
   const sy = (y: number) => padT + plotH - ((y - minY) / spanY) * plotH;
 
   const points = data.map((d) => `${sx(d.x)},${sy(d.y)}`).join(' ');
+  // closed polygon for the gradient area fill (line down to the baseline)
+  const baseline = padT + plotH;
+  const area = `${sx(minX)},${baseline} ${points} ${sx(maxX)},${baseline}`;
+  const gradId = `area-${useId()}`;
 
   return (
     <View>
       <Svg width={width} height={height}>
+        <Defs>
+          <LinearGradient id={gradId} x1="0" y1="0" x2="0" y2="1">
+            <Stop offset="0" stopColor={color} stopOpacity={0.35} />
+            <Stop offset="1" stopColor={color} stopOpacity={0} />
+          </LinearGradient>
+        </Defs>
+        {data.length > 1 && <Polygon points={area} fill={`url(#${gradId})`} />}
         {/* y guides: min, mid, max */}
         {[maxY, (maxY + minY) / 2, minY].map((gy, i) => {
           const y = sy(gy);

@@ -7,7 +7,7 @@ import {
   TextInputProps,
   View,
 } from 'react-native';
-import { colors, radius, spacing } from '@/constants/theme';
+import { colors, radius, shadow, spacing, typography } from '@/constants/theme';
 
 export function Screen({ children }: { children: ReactNode }) {
   return <View style={styles.screen}>{children}</View>;
@@ -23,6 +23,27 @@ export function Subtitle({ children }: { children: ReactNode }) {
 
 export function Label({ children }: { children: ReactNode }) {
   return <Text style={styles.label}>{children}</Text>;
+}
+
+/** Brand wordmark — "LIFTER" in foreground, "PROTOCOL" in the sky-blue accent. */
+export function Wordmark({ size = 20 }: { size?: number }) {
+  return (
+    <Text style={[styles.wordmark, { fontSize: size }]}>
+      LIFTER<Text style={styles.wordmarkAccent}> PROTOCOL</Text>
+    </Text>
+  );
+}
+
+type BadgeTone = 'neutral' | 'accent' | 'success' | 'warn';
+
+/** Pill status badge matching the design language (neutral / accent / success / warn). */
+export function Badge({ label, tone = 'neutral' }: { label: string; tone?: BadgeTone }) {
+  return (
+    <View style={[styles.badge, styles[`badge_${tone}`]]}>
+      {tone !== 'neutral' ? <View style={[styles.dot, styles[`dot_${tone}`]]} /> : null}
+      <Text style={[styles.badgeText, styles[`badgeText_${tone}`]]}>{label}</Text>
+    </View>
+  );
 }
 
 /**
@@ -55,9 +76,10 @@ export function InfoLabel({ children, help }: { children: ReactNode; help: strin
 }
 
 export function ProgressBar({ step, total }: { step: number; total: number }) {
+  const pct = Math.max(0, Math.min(1, total ? step / total : 0)) * 100;
   return (
     <View style={styles.progressTrack}>
-      <View style={[styles.progressFill, { width: `${(step / total) * 100}%` }]} />
+      <View style={[styles.progressFill, { width: `${pct}%` }]} />
     </View>
   );
 }
@@ -75,9 +97,14 @@ export function PrimaryButton({
     <Pressable
       onPress={onPress}
       disabled={disabled}
-      style={[styles.button, disabled && styles.buttonDisabled]}
+      style={({ pressed }) => [
+        styles.button,
+        !disabled && shadow.glow,
+        pressed && !disabled && styles.buttonPressed,
+        disabled && styles.buttonDisabled,
+      ]}
     >
-      <Text style={styles.buttonText}>{label}</Text>
+      <Text style={[styles.buttonText, disabled && styles.buttonTextDisabled]}>{label}</Text>
     </Pressable>
   );
 }
@@ -96,20 +123,41 @@ export function OptionCard({
   return (
     <Pressable
       onPress={onPress}
-      style={[styles.card, selected && styles.cardSelected]}
+      style={({ pressed }) => [
+        styles.card,
+        shadow.card,
+        selected && styles.cardSelected,
+        pressed && styles.cardPressed,
+      ]}
     >
-      <Text style={styles.cardTitle}>{title}</Text>
+      <View style={styles.cardHead}>
+        <Text style={styles.cardTitle}>{title}</Text>
+        {selected ? (
+          <View style={styles.check}>
+            <Text style={styles.checkMark}>✓</Text>
+          </View>
+        ) : null}
+      </View>
       {description ? <Text style={styles.cardDesc}>{description}</Text> : null}
     </Pressable>
   );
 }
 
 export function Field(props: TextInputProps) {
+  const [focused, setFocused] = useState(false);
   return (
     <TextInput
-      placeholderTextColor={colors.textMuted}
-      style={styles.input}
+      placeholderTextColor={colors.textFaint}
       {...props}
+      onFocus={(e) => {
+        setFocused(true);
+        props.onFocus?.(e);
+      }}
+      onBlur={(e) => {
+        setFocused(false);
+        props.onBlur?.(e);
+      }}
+      style={[styles.input, focused && styles.inputFocused, props.style]}
     />
   );
 }
@@ -121,10 +169,10 @@ const styles = StyleSheet.create({
     padding: spacing.lg,
     gap: spacing.md,
   },
-  title: { color: colors.text, fontSize: 26, fontWeight: '700' },
-  subtitle: { color: colors.textMuted, fontSize: 15, lineHeight: 21 },
-  label: { color: colors.text, fontSize: 14, fontWeight: '600', marginBottom: spacing.xs },
-  labelInline: { color: colors.text, fontSize: 14, fontWeight: '600' },
+  title: { ...typography.title },
+  subtitle: { ...typography.subtitle },
+  label: { ...typography.label, marginBottom: spacing.xs },
+  labelInline: { ...typography.label },
   infoRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
   helpDot: {
     width: 18,
@@ -147,21 +195,49 @@ const styles = StyleSheet.create({
   },
   helpText: { color: colors.textMuted, fontSize: 13, lineHeight: 19 },
   progressTrack: {
-    height: 6,
+    height: 8,
     backgroundColor: colors.surfaceAlt,
-    borderRadius: radius.sm,
+    borderRadius: radius.pill,
     overflow: 'hidden',
   },
-  progressFill: { height: 6, backgroundColor: colors.accent },
+  progressFill: { height: 8, backgroundColor: colors.accent, borderRadius: radius.pill },
+  wordmark: { color: colors.text, fontWeight: '900', letterSpacing: 0.5 },
+  wordmarkAccent: { color: colors.accent },
+  badge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+    alignSelf: 'flex-start',
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: radius.pill,
+    borderWidth: 1,
+  },
+  badge_neutral: { backgroundColor: colors.surfaceAlt, borderColor: colors.border },
+  badge_accent: { backgroundColor: colors.accentSoft, borderColor: colors.accentBorder },
+  badge_success: { backgroundColor: colors.successSoft, borderColor: colors.success },
+  badge_warn: { backgroundColor: '#3A2A0F80', borderColor: colors.warning },
+  dot: { width: 6, height: 6, borderRadius: 3 },
+  dot_neutral: { backgroundColor: colors.textMuted },
+  dot_accent: { backgroundColor: colors.accent },
+  dot_success: { backgroundColor: colors.success },
+  dot_warn: { backgroundColor: colors.warning },
+  badgeText: { fontSize: 11, fontWeight: '800', letterSpacing: 0.4, textTransform: 'uppercase' },
+  badgeText_neutral: { color: colors.textMuted },
+  badgeText_accent: { color: colors.accent },
+  badgeText_success: { color: colors.success },
+  badgeText_warn: { color: colors.warning },
   button: {
     backgroundColor: colors.accent,
     paddingVertical: spacing.md,
-    borderRadius: radius.md,
+    borderRadius: radius.pill,
     alignItems: 'center',
     marginTop: 'auto',
   },
+  buttonPressed: { backgroundColor: colors.accentBright, transform: [{ scale: 0.985 }] },
   buttonDisabled: { backgroundColor: colors.surfaceAlt },
-  buttonText: { color: colors.text, fontSize: 16, fontWeight: '700' },
+  buttonText: { color: colors.onAccent, fontSize: 16, fontWeight: '800', letterSpacing: 0.2 },
+  buttonTextDisabled: { color: colors.textFaint },
   card: {
     backgroundColor: colors.surface,
     borderRadius: radius.md,
@@ -170,9 +246,20 @@ const styles = StyleSheet.create({
     borderColor: colors.border,
     gap: spacing.xs,
   },
+  cardPressed: { backgroundColor: colors.surfaceHover, borderColor: colors.borderStrong },
   cardSelected: { borderColor: colors.accent, backgroundColor: colors.accentSoft },
-  cardTitle: { color: colors.text, fontSize: 17, fontWeight: '700' },
+  cardHead: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: spacing.sm },
+  cardTitle: { color: colors.text, fontSize: 17, fontWeight: '700', flexShrink: 1 },
   cardDesc: { color: colors.textMuted, fontSize: 13, lineHeight: 18 },
+  check: {
+    width: 22,
+    height: 22,
+    borderRadius: 11,
+    backgroundColor: colors.accent,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  checkMark: { color: colors.onAccent, fontSize: 13, fontWeight: '900', lineHeight: 15 },
   input: {
     backgroundColor: colors.surface,
     borderWidth: 1,
@@ -182,4 +269,5 @@ const styles = StyleSheet.create({
     color: colors.text,
     fontSize: 16,
   },
+  inputFocused: { borderColor: colors.accent, backgroundColor: colors.bgElevated },
 });

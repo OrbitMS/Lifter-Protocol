@@ -1,4 +1,5 @@
 import { useRouter } from 'expo-router';
+import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { ReactNode } from 'react';
 import { Alert, Platform, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { PrimaryButton, Subtitle, Title } from '@/components/ui';
@@ -89,10 +90,12 @@ export default function ProfileTab() {
       <View style={{ flexDirection: 'row', gap: spacing.sm }}>
         {p ? (
           <Pressable style={styles.toolBtn} onPress={editProfile}>
+            <MaterialCommunityIcons name="account-edit" size={18} color={colors.text} />
             <Text style={styles.toolText}>Edit profile</Text>
           </Pressable>
         ) : null}
         <Pressable style={styles.toolBtn} onPress={() => router.push('/settings')}>
+          <MaterialCommunityIcons name="cog" size={18} color={colors.text} />
           <Text style={styles.toolText}>Settings</Text>
         </Pressable>
       </View>
@@ -186,12 +189,15 @@ const styles = StyleSheet.create({
   section: { color: colors.accent, fontSize: 12, fontWeight: '800', letterSpacing: 1 },
   toolBtn: {
     flex: 1,
+    flexDirection: 'row',
+    gap: spacing.xs,
     backgroundColor: colors.surface,
     borderWidth: 1,
     borderColor: colors.border,
     borderRadius: radius.md,
     paddingVertical: spacing.sm,
     alignItems: 'center',
+    justifyContent: 'center',
   },
   toolText: { color: colors.text, fontWeight: '700' },
   card: {

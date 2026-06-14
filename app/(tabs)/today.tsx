@@ -1,8 +1,8 @@
 import { useRouter } from 'expo-router';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { PanResponder, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
-import { Subtitle, Title } from '@/components/ui';
-import { colors, radius, spacing } from '@/constants/theme';
+import { Badge, Subtitle, Title } from '@/components/ui';
+import { colors, radius, shadow, spacing } from '@/constants/theme';
 import { localCue, sessionCue, type CoachContext } from '@/engine/coaching';
 import { getCoach } from '@/coaching';
 import { flattenDays } from '@/lib/days';
@@ -166,13 +166,13 @@ export default function Today() {
             >
               <View style={styles.exHead}>
                 <Text style={styles.exName}>{display}</Text>
-                {ex.role && ex.role !== 'main' ? <Text style={styles.tag}>{ex.role}</Text> : null}
+                <View style={styles.badgeGroup}>
+                  {ex.role && ex.role !== 'main' ? <Badge label={ex.role} /> : null}
+                  {replaced ? <Badge label="swapped" tone="accent" /> : null}
+                </View>
               </View>
               <View style={styles.exHead}>
-                <Text style={styles.exMeta}>
-                  {target}
-                  {replaced ? '  · swapped' : ''}
-                </Text>
+                <Text style={styles.exMeta}>{target}</Text>
                 <Text style={styles.chev}>›</Text>
               </View>
             </Pressable>
@@ -201,11 +201,12 @@ const styles = StyleSheet.create({
   dayPhase: { color: colors.textMuted, fontSize: 12, textTransform: 'capitalize', marginTop: 2 },
   startBtn: {
     backgroundColor: colors.accent,
-    borderRadius: radius.md,
+    borderRadius: radius.pill,
     paddingVertical: spacing.md,
     alignItems: 'center',
+    ...shadow.glow,
   },
-  startText: { color: colors.text, fontSize: 16, fontWeight: '800' },
+  startText: { color: colors.onAccent, fontSize: 16, fontWeight: '800', letterSpacing: 0.2 },
   doneBadge: {
     backgroundColor: colors.surface,
     borderRadius: radius.sm,
@@ -221,21 +222,11 @@ const styles = StyleSheet.create({
     padding: spacing.md,
     borderWidth: 1,
     borderColor: colors.border,
+    ...shadow.card,
   },
   exHead: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', gap: spacing.sm },
   exName: { color: colors.text, fontSize: 16, fontWeight: '600', flexShrink: 1 },
-  tag: {
-    color: colors.textMuted,
-    fontSize: 10,
-    fontWeight: '700',
-    letterSpacing: 0.5,
-    textTransform: 'uppercase',
-    borderWidth: 1,
-    borderColor: colors.border,
-    borderRadius: radius.sm,
-    paddingHorizontal: 6,
-    paddingVertical: 2,
-  },
+  badgeGroup: { flexDirection: 'row', gap: spacing.xs, flexShrink: 0 },
   exMeta: { color: colors.textMuted, marginTop: 4 },
   chev: { color: colors.textMuted, fontSize: 22, marginTop: 2 },
   cue: {

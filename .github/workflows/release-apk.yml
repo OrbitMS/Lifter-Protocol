@@ -1,0 +1,80 @@
+name: Build & Release APK
+
+# Runs on every push to main. It only builds + publishes a release when the
+# version in app.json has been bumped (i.e. the tag v<version> doesn't exist yet),
+# so normal pushes are a no-op.
+on:
+  push:
+    branches: [main]
+  workflow_dispatch: {} # allows manual runs from the Actions tab
+
+permissions:
+  contents: write # needed to create the GitHub release + tag
+
+jobs:
+  build-release:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0 # full history so we can see existing tags
+
+      - name: Read version from app.json
+        id: ver
+        run: |
+          VERSION=$(jq -r '.expo.version' app.json)
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "App version: $VERSION"
+
+      - name: Check if release already exists
+        id: check
+        run: |
+          TAG="v${{ steps.ver.outputs.version }}"
+          if git ls-remote --tags origin "refs/tags/$TAG" | grep -q "$TAG"; then
+            echo "exists=true" >> "$GITHUB_OUTPUT"
+            echo "Tag $TAG already exists - skipping build."
+          else
+            echo "exists=false" >> "$GITHUB_OUTPUT"
+            echo "New version $TAG - will build and release."
+          fi
+
+      - name: Setup Node
+        if: steps.check.outputs.exists == 'false'
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Setup EAS
+        if: steps.check.outputs.exists == 'false'
+        uses: expo/expo-github-action@v8
+        with:
+          eas-version: latest
+          token: ${{ secrets.EXPO_TOKEN }}
+
+      - name: Install dependencies
+        if: steps.check.outputs.exists == 'false'
+        run: npm ci
+
+      - name: Build Android APK on EAS
+        if: steps.check.outputs.exists == 'false'
+        run: eas build --platform android --profile preview --non-interactive --wait
+
+      - name: Download APK artifact
+        if: steps.check.outputs.exists == 'false'
+        run: |
+          URL=$(eas build:list --platform android --status finished --limit 1 --json --non-interactive \
+            | jq -r '.[0].artifacts.applicationArchiveUrl')
+          echo "Artifact: $URL"
+          curl -L "$URL" -o "LifterProtocol-v${{ steps.ver.outputs.version }}.apk"
+
+      - name: Create GitHub Release
+        if: steps.check.outputs.exists == 'false'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh release create "v${{ steps.ver.outputs.version }}" \
+            "LifterProtocol-v${{ steps.ver.outputs.version }}.apk" \
+            --title "v${{ steps.ver.outputs.version }}" \
+            --generate-notes

@@ -1,15 +1,21 @@
-// Fixes CameraX version incompatibility for react-native-vision-camera v5.
+// Fixes two native build issues for Expo SDK 52 + react-native-vision-camera v5:
 //
-// VisionCamera v5 hardcodes camerax_version = "1.7.0-alpha01" in its build.gradle.
-// CameraX 1.7.0-alpha01 declares it requires Android Gradle Plugin 8.9.1+ and
-// compileSdk 36+. Expo SDK 52 / React Native 0.76 pins AGP to 8.6.0.
+// 1. KGP classpath version mismatch:
+//    expo-build-properties sets ext.kotlinVersion=2.1.0 (needed because
+//    vision-camera v5's Nitrogen-generated Kotlin files are compiled with 2.1.0).
+//    expo-modules-core checks if kotlinVersion >= 2 and applies the
+//    org.jetbrains.kotlin.plugin.compose plugin. That plugin then tries to add
+//    kotlin-compose-compiler-plugin-embeddable at the *actual KGP version*
+//    (1.9.25 from RN's libs.versions.toml), but that artifact only exists for
+//    Kotlin 2.x. Fix: explicitly version the KGP classpath to match ext.kotlinVersion
+//    so the actual compiler version matches the configured one.
 //
-// Fix: force all androidx.camera artifacts to 1.4.2 via a Gradle resolution
-// strategy on :app. VisionCamera v5's Java/Kotlin source uses only stable CameraX
-// APIs present since 1.3.x — it lists 1.7.0-alpha01 as a build.gradle dependency
-// but does not use any 1.7-exclusive APIs, so downgrading at the resolution layer
-// is safe and the compilation succeeds.
-const { withAppBuildGradle } = require('@expo/config-plugins');
+// 2. CameraX 1.7.0-alpha01 requires AGP 8.9.1+:
+//    VisionCamera v5 hardcodes camerax_version = "1.7.0-alpha01" but Expo SDK 52 /
+//    RN 0.76 pins AGP to 8.6.0. Fix: force CameraX to 1.4.2 via a Gradle
+//    resolution strategy. VisionCamera v5's Java/Kotlin source only uses stable
+//    CameraX APIs present since 1.3.x so the downgrade is safe.
+const { withAppBuildGradle, withProjectBuildGradle } = require('@expo/config-plugins');
 
 const CAMERAX_VERSION = '1.4.2';
 
@@ -45,6 +51,18 @@ ${forces}
 }
 
 function withAndroidBuildFix(config) {
+  // Fix 1: pin the Kotlin Gradle Plugin classpath to the same version as
+  // ext.kotlinVersion so that expo-modules-core's Compose plugin check works.
+  config = withProjectBuildGradle(config, (cfg) => {
+    const OLD = "classpath('org.jetbrains.kotlin:kotlin-gradle-plugin')";
+    const NEW = 'classpath("org.jetbrains.kotlin:kotlin-gradle-plugin:${kotlinVersion}")';
+    if (cfg.modResults.contents.includes(OLD)) {
+      cfg.modResults.contents = cfg.modResults.contents.replace(OLD, NEW);
+    }
+    return cfg;
+  });
+
+  // Fix 2: force CameraX to 1.4.2 to satisfy AGP 8.6.0.
   config = withAppBuildGradle(config, (cfg) => {
     const block = buildResolutionBlock();
     if (!cfg.modResults.contents.includes('force "androidx.camera:camera-core:')) {
@@ -52,6 +70,7 @@ function withAndroidBuildFix(config) {
     }
     return cfg;
   });
+
   return config;
 }
 

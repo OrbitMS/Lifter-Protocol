@@ -76,9 +76,9 @@ export default function ExerciseDetail() {
       <Stack.Screen options={{ title: info.name, headerShown: true }} />
       <ScrollView style={{ backgroundColor: colors.bg }} contentContainerStyle={{ padding: spacing.lg, gap: spacing.lg }}>
         <View style={[styles.banner, { backgroundColor: meta.color + '22', borderColor: meta.color }]}>
-          <Text style={styles.bannerEmoji}>{meta.emoji}</Text>
+          <Text style={styles.bannerEmoji}>{info.emoji}</Text>
           <View style={{ flex: 1 }}>
-            <Text style={styles.bannerTitle}>{meta.label}</Text>
+            <Text style={styles.bannerTitle}>{info.label}</Text>
             <Text style={styles.bannerSub}>
               {info.primaryMuscles.join(' · ')}{info.equipment ? ` · ${info.equipment}` : ''}
             </Text>

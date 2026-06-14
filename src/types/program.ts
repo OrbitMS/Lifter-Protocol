@@ -17,6 +17,8 @@ export interface ProgramConfig {
   bbToPlRatio: number;
   upperFocus: UpperFocus[];
   lowerFocus: LowerFocus[];
+  /** preparing for a meet/competition — shifts the macrocycle toward peaking */
+  competing?: boolean;
 }
 
 export type PhaseName =

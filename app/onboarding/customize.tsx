@@ -26,6 +26,7 @@ export default function Customize() {
   const [upper, setUpper] = useState<UpperFocus[]>(['back']);
   const [lower, setLower] = useState<LowerFocus[]>(['quads']);
   const [days, setDays] = useState<Weekday[]>(['mon', 'tue', 'thu', 'fri']);
+  const [competing, setCompeting] = useState(false);
 
   const isCombo = config.type !== 'powerlifting';
   const valid = days.length >= 3 && days.length <= 6;
@@ -38,6 +39,7 @@ export default function Customize() {
       lowerFocus: lower,
       trainingDays: days,
       daysPerWeek: days.length,
+      competing,
     });
     buildProgram();
     router.replace('/(tabs)/today');
@@ -93,6 +95,20 @@ export default function Customize() {
           </View>
         ))}
       </View>
+
+      <Label>Preparing for a competition / meet?</Label>
+      <OptionCard
+        title="Yes — peak for a meet"
+        description="Builds toward a strength peak (intensification → realization) and tapers accessories near the end."
+        selected={competing}
+        onPress={() => setCompeting(true)}
+      />
+      <OptionCard
+        title="No — general training"
+        description="Balanced macrocycle without a meet-specific peak."
+        selected={!competing}
+        onPress={() => setCompeting(false)}
+      />
 
       <PrimaryButton label="Build my program" onPress={finish} disabled={!valid} />
     </ScrollView>

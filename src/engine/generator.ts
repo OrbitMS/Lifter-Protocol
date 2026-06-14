@@ -1,4 +1,4 @@
-import type { TrainingHistory, RecoveryProfile } from '@/types/profile';
+import type { UserProfile } from '@/types/profile';
 import type {
   Block,
   ExercisePrescription,
@@ -9,7 +9,7 @@ import type {
   Weekday,
 } from '@/types/program';
 import { selectSupportWork } from './exercises';
-import { PHASE_TEMPLATES, TRAINING_MAX_RATIO } from './periodization';
+import { getPhases, TRAINING_MAX_RATIO } from './periodization';
 import {
   bucketRecovery,
   computeRecoveryIndex,
@@ -31,56 +31,69 @@ function round(n: number, step = 2.5): number {
 }
 
 /**
- * Build a complete program from the profile + config.
- *
- * High level:
- *   1. recovery → volume + intensity modifiers
- *   2. for each periodization phase → for each week → for each training day:
- *        - assign a main lift focus (rotated across the week)
- *        - prescribe top sets against the training max
- *        - layer in accessories per bbToPlRatio + focus areas
+ * Build a complete program from the full profile + config. Every onboarding
+ * answer feeds in:
+ *   - recovery (job, stress, recovery speed, sleep) → Recovery Index → sets + RPE cap
+ *   - training maxes (S/B/D)                         → top-set loads
+ *   - experience (years training)                    → volume + RPE ceiling
+ *   - frequency preference (low/high)                → accessory volume per session
+ *   - diet goal (lose/maintain/gain)                 → accessory volume
+ *   - age                                            → recovery-driven volume
+ *   - program type, BB/PL ratio, focus areas, days   → split, emphasis, selection
+ *   - competing                                      → peaking macrocycle + taper
  */
-export function generateProgram(
-  history: TrainingHistory,
-  recovery: RecoveryProfile,
-  config: ProgramConfig,
-): Program {
+export function generateProgram(profile: UserProfile, config: ProgramConfig): Program {
+  const history = profile.history!;
+  const recovery = profile.recovery!;
+
   const index = recovery.recoveryIndex ?? computeRecoveryIndex(recovery);
   const bucket = recovery.recoveryBucket ?? bucketRecovery(index);
-  const setMod = recoveryVolumeModifier(bucket);
-  const rpeCeiling = recoveryRpeCeiling(bucket);
+  const setMod = recoveryVolumeModifier(bucket); // affects sets per exercise
 
-  // training maxes
+  // experience tier → volume + how hard we let them push
+  const years = history.yearsTraining ?? 1;
+  const tier = years < 1.5 ? 'beginner' : years <= 4 ? 'intermediate' : 'advanced';
+  const expVol = tier === 'beginner' ? -1 : tier === 'advanced' ? 1 : 0;
+  const expRpeCap = tier === 'beginner' ? 8 : tier === 'advanced' ? 10 : 9;
+  const rpeCeiling = Math.min(recoveryRpeCeiling(bucket), expRpeCap);
+
+  // frequency preference: low frequency concentrates volume into each session
+  const freqVol = history.frequencyPreference === 'high' ? -1 : 1;
+  // diet goal: a surplus supports more volume, a deficit warrants less
+  const goal = profile.nutrition?.dietGoal;
+  const dietVol = goal === 'gain' ? 1 : goal === 'lose' ? -1 : 0;
+  // age: older athletes recover slower → trim accessory volume
+  const age = profile.basics?.age ?? 30;
+  const ageVol = age >= 55 ? -2 : age >= 45 ? -1 : 0;
+
+  const accessoryMod = freqVol + dietVol + expVol + ageVol;
+  const competing = !!config.competing;
+
   const tm: Record<MainLift, number> = {
     squat: history.maxes.squat * TRAINING_MAX_RATIO,
     bench: history.maxes.bench * TRAINING_MAX_RATIO,
     deadlift: history.maxes.deadlift * TRAINING_MAX_RATIO,
   };
 
-  const phases = PHASE_TEMPLATES[config.type];
+  const phases = getPhases(config.type, competing);
   const days = config.trainingDays.slice(0, config.daysPerWeek);
 
   const blocks: Block[] = phases.map((spec) => {
     const weeks: TrainingWeek[] = [];
 
     for (let w = 1; w <= spec.weeks; w++) {
-      // simple wave: nudge intensity up across weeks within a block
       const weekBump = (w - 1) * 0.02;
       const sessions: Session[] = days.map((day, di) => {
         const mainLift = MAIN_LIFTS[di % MAIN_LIFTS.length];
 
         const topPercent = Math.min(0.95, spec.mainPercent + weekBump);
         const mainEx: ExercisePrescription = {
-          // concrete top-set load attached as a hint via name suffix
           name: `${LIFT_LABEL[mainLift]} — ${round(tm[mainLift] * topPercent)}kg`,
           category: mainLift,
           role: 'main',
-          sets: Math.max(1, 3 + setMod),
+          sets: Math.max(1, 3 + setMod + (expVol > 0 ? 1 : 0)),
           reps: spec.mainReps,
-          intensity: {
-            percentOf1RM: topPercent,
-            rpe: Math.min(rpeCeiling, 9),
-          },
+          intensity: { percentOf1RM: topPercent, rpe: Math.min(rpeCeiling, 9) },
         };
 
         const support = selectSupportWork({
@@ -95,6 +108,8 @@ export function generateProgram(
           week: w,
           phaseSpec: spec,
           trainingMax: tm[mainLift],
+          accessoryMod,
+          competing,
         });
 
         return {
@@ -110,10 +125,5 @@ export function generateProgram(
     return { phase: spec.phase, weeks };
   });
 
-  return {
-    type: config.type,
-    generatedAt: new Date().toISOString(),
-    config,
-    blocks,
-  };
+  return { type: config.type, generatedAt: new Date().toISOString(), config, blocks };
 }

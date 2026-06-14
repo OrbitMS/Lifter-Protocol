@@ -32,6 +32,17 @@ describe('exercise info', () => {
     expect(getExerciseInfo('Seated Cable Row').pattern).toBe('horizontal-pull');
     expect(getExerciseInfo('Hanging Leg Raise').pattern).toBe('core');
   });
+
+  it('gives Leg Press its own machine instructions/symbol — not barbell squat', () => {
+    const info = getExerciseInfo('Leg Press');
+    expect(info.emoji).toBe('🦵');
+    expect(info.label.toLowerCase()).toContain('leg press');
+    const text = info.instructions.join(' ').toLowerCase();
+    // must NOT describe racking a barbell on the upper back
+    expect(text).not.toContain('upper back');
+    expect(text).not.toContain('unrack');
+    expect(text).toContain('platform');
+  });
 });
 
 describe('exercise substitution', () => {

@@ -94,6 +94,10 @@ export interface SupportWorkOptions {
   phaseSpec: PhaseSpec;
   /** training max of the main lift, for variation load hints */
   trainingMax: number;
+  /** accessory-count modifier from frequency pref, diet goal, experience, age */
+  accessoryMod: number;
+  /** competition prep — taper accessories harder in the strength/peak phases */
+  competing: boolean;
 }
 
 /**
@@ -110,7 +114,7 @@ export interface SupportWorkOptions {
 export function selectSupportWork(opts: SupportWorkOptions): ExercisePrescription[] {
   const {
     lift, phase, programType, bbToPlRatio, upperFocus, lowerFocus,
-    setMod, rpeCeiling, week, phaseSpec, trainingMax,
+    setMod, rpeCeiling, week, phaseSpec, trainingMax, accessoryMod, competing,
   } = opts;
 
   const region: 'upper' | 'lower' = lift === 'bench' ? 'upper' : 'lower';
@@ -158,7 +162,9 @@ export function selectSupportWork(opts: SupportWorkOptions): ExercisePrescriptio
   else base = 3; // power-combo
   if (isHypertrophyPhase(phase)) base += 1;
   if (phase === 'realization' || phase === 'deload') base -= 1;
-  const accCount = clamp(base + setMod, 1, 5);
+  // competition prep tapers accessory volume in the strength/peak phases
+  if (competing && STRENGTH_PHASES.includes(phase)) base -= 1;
+  const accCount = clamp(base + accessoryMod, 1, 5);
 
   // 3. focus-weighted accessory pools
   let pools: string[][];

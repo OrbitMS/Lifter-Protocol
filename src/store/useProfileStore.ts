@@ -80,11 +80,7 @@ export const useProfileStore = create<ProfileState>()(
       buildProgram: () => {
         const { draft } = get();
         if (!draft.profile.history || !draft.profile.recovery || !draft.config.type) return;
-        const program = generateProgram(
-          draft.profile.history,
-          draft.profile.recovery,
-          draft.config as ProgramConfig,
-        );
+        const program = generateProgram(draft.profile, draft.config as ProgramConfig);
         const id = genId();
         const stored: StoredProfile = {
           id,

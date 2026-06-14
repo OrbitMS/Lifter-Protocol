@@ -120,6 +120,7 @@ export default function ProfileTab() {
 
           <Section title="TRAINING">
             <Row k="Experience" v={history ? `${history.yearsTraining} yrs` : '—'} />
+            <Row k="Frequency pref" v={cap(history?.frequencyPreference)} />
             <Row k="Squat 1RM" v={history ? `${history.maxes.squat} kg` : '—'} />
             <Row k="Bench 1RM" v={history ? `${history.maxes.bench} kg` : '—'} />
             <Row k="Deadlift 1RM" v={history ? `${history.maxes.deadlift} kg` : '—'} />
@@ -144,6 +145,7 @@ export default function ProfileTab() {
             <Row k="Training days" v={list(program?.config.trainingDays)} />
             <Row k="Upper focus" v={list(program?.config.upperFocus)} />
             <Row k="Lower focus" v={list(program?.config.lowerFocus)} />
+            <Row k="Competition prep" v={program?.config.competing ? 'Yes' : 'No'} />
           </Section>
 
           <Section title="TRAINING PLAN">

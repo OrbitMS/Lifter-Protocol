@@ -47,6 +47,7 @@
       "expo-asset",
       "expo-font",
       "expo-sqlite",
+      "./plugins/withAndroidBuildFix",
       [
         "./plugins/withVisionCamera",
         {

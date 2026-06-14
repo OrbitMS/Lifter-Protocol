@@ -12,16 +12,18 @@ import {
   View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { getCoach } from '@/coaching';
+import { getCoach, initCoach } from '@/coaching';
 import { radius, shadow, spacing, type Palette } from '@/constants/theme';
-import {
-  athleteSummary,
-  chatSystemPrompt,
-  type ChatMessage,
-} from '@/engine/coaching';
+import { athleteSummary, chatSystemPrompt, type ChatMessage } from '@/engine/coaching';
 import { summarizeTraining } from '@/lib/trainingSummary';
 import { flattenDays } from '@/lib/days';
 import { useTheme, useThemedStyles } from '@/lib/useTheme';
+import {
+  createModelDownload,
+  isModelDownloaded,
+  MODEL_SIZE_MB,
+  type DownloadProgress,
+} from '@/lib/modelManager';
 import { useActiveProfile } from '@/store/useProfileStore';
 import { useLogStore } from '@/store/useLogStore';
 
@@ -32,6 +34,8 @@ const PLACEHOLDER_PROMPTS = [
   'Am I recovering well enough to push harder?',
 ];
 
+type ScreenState = 'checking' | 'needs-download' | 'downloading' | 'ready';
+
 export default function CoachChat() {
   const router = useRouter();
   const { palette: c } = useTheme();
@@ -41,9 +45,36 @@ export default function CoachChat() {
   const profileId = active?.id ?? '';
   const logsForProfile = useLogStore((s) => s.logsForProfile);
 
-  // Build the system prompt once per screen open
+  const [screen, setScreen] = useState<ScreenState>('checking');
+  const [dlProgress, setDlProgress] = useState<DownloadProgress>({ bytesDownloaded: 0, bytesTotal: 0, fraction: 0 });
+  const downloadRef = useRef<ReturnType<typeof createModelDownload> | null>(null);
+
+  // Check model presence on mount
+  useEffect(() => {
+    isModelDownloaded().then((ready) => setScreen(ready ? 'ready' : 'needs-download'));
+  }, []);
+
+  const startDownload = useCallback(async () => {
+    setScreen('downloading');
+    const dl = createModelDownload(setDlProgress);
+    downloadRef.current = dl;
+    try {
+      await dl.downloadAsync();
+      await initCoach(); // re-activate coach now that model is on disk
+      setScreen('ready');
+    } catch {
+      setScreen('needs-download');
+    }
+  }, []);
+
+  const cancelDownload = useCallback(() => {
+    downloadRef.current?.pauseAsync();
+    setScreen('needs-download');
+  }, []);
+
+  // Build the system prompt once the chat is ready
   const systemPrompt = useMemo(() => {
-    if (!active) return '';
+    if (!active || screen !== 'ready') return '';
     const profileLine = athleteSummary(active.profile, active.config?.type);
     const days = flattenDays(active.program);
     const currentDay = days.find((_, i) => !active.completed?.[i]);
@@ -53,14 +84,13 @@ export default function CoachChat() {
     const logs = logsForProfile(profileId);
     const trainingSummary = summarizeTraining(logs);
     return chatSystemPrompt({ profileLine, cycleLine, trainingSummary });
-  }, [active, profileId, logsForProfile]);
+  }, [active, profileId, logsForProfile, screen]);
 
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [input, setInput] = useState('');
   const [loading, setLoading] = useState(false);
   const scrollRef = useRef<ScrollView>(null);
 
-  // Auto-scroll to bottom when new messages arrive
   useEffect(() => {
     setTimeout(() => scrollRef.current?.scrollToEnd({ animated: true }), 80);
   }, [messages, loading]);
@@ -82,11 +112,7 @@ export default function CoachChat() {
       } catch {
         setMessages((prev) => [
           ...prev,
-          {
-            role: 'assistant',
-            content:
-              "I couldn't reach the coach right now. Check your connection or configure the coach URL in Settings.",
-          },
+          { role: 'assistant', content: 'Something went wrong. The model may still be loading — try again in a moment.' },
         ]);
       } finally {
         setLoading(false);
@@ -95,14 +121,93 @@ export default function CoachChat() {
     [loading, messages, systemPrompt],
   );
 
+  // ── Shared header ────────────────────────────────────────────────────────────
+  const header = (
+    <View style={styles.header}>
+      <Pressable onPress={() => router.back()} style={styles.backBtn}>
+        <Text style={styles.backText}>‹</Text>
+      </Pressable>
+      <View style={{ flex: 1 }}>
+        <Text style={styles.headerTitle}>Coach</Text>
+        {active && (
+          <Text style={styles.headerSub} numberOfLines={1}>
+            {active.profile.basics?.name ?? 'Athlete'} · {active.config?.type ?? 'program'}
+          </Text>
+        )}
+      </View>
+      <View style={[styles.statusDot, screen !== 'ready' && styles.statusDotOff]} />
+    </View>
+  );
+
+  // ── No profile ───────────────────────────────────────────────────────────────
   if (!active) {
     return (
-      <SafeAreaView style={{ flex: 1, backgroundColor: c.bg, padding: spacing.lg }}>
-        <Text style={{ color: c.text }}>Complete onboarding to unlock coach chat.</Text>
+      <SafeAreaView style={{ flex: 1, backgroundColor: c.bg }} edges={['bottom']}>
+        {header}
+        <View style={styles.centred}>
+          <Text style={styles.emptyTitle}>No profile yet</Text>
+          <Text style={styles.emptySub}>Complete onboarding to unlock coach chat.</Text>
+        </View>
       </SafeAreaView>
     );
   }
 
+  // ── Checking ─────────────────────────────────────────────────────────────────
+  if (screen === 'checking') {
+    return (
+      <SafeAreaView style={{ flex: 1, backgroundColor: c.bg }} edges={['bottom']}>
+        {header}
+        <View style={styles.centred}>
+          <ActivityIndicator color={c.accent} />
+        </View>
+      </SafeAreaView>
+    );
+  }
+
+  // ── Download needed ───────────────────────────────────────────────────────────
+  if (screen === 'needs-download') {
+    return (
+      <SafeAreaView style={{ flex: 1, backgroundColor: c.bg }} edges={['bottom']}>
+        {header}
+        <View style={styles.centred}>
+          <Text style={styles.emptyTitle}>Download AI model</Text>
+          <Text style={styles.emptySub}>
+            The coach runs 100% on your device — no cloud, no API key. A one-time download is required (~{MODEL_SIZE_MB} MB, use Wi-Fi).
+          </Text>
+          <Pressable style={styles.downloadBtn} onPress={startDownload}>
+            <Text style={styles.downloadBtnText}>Download now</Text>
+          </Pressable>
+        </View>
+      </SafeAreaView>
+    );
+  }
+
+  // ── Downloading ──────────────────────────────────────────────────────────────
+  if (screen === 'downloading') {
+    const pct = Math.round(dlProgress.fraction * 100);
+    const mb = (dlProgress.bytesDownloaded / 1_000_000).toFixed(0);
+    const total = dlProgress.bytesTotal > 0
+      ? (dlProgress.bytesTotal / 1_000_000).toFixed(0)
+      : MODEL_SIZE_MB.toString();
+
+    return (
+      <SafeAreaView style={{ flex: 1, backgroundColor: c.bg }} edges={['bottom']}>
+        {header}
+        <View style={styles.centred}>
+          <Text style={styles.emptyTitle}>Downloading model…</Text>
+          <Text style={styles.emptySub}>{mb} / {total} MB · {pct}%</Text>
+          <View style={styles.progressTrack}>
+            <View style={[styles.progressFill, { width: `${pct}%` }]} />
+          </View>
+          <Pressable onPress={cancelDownload} style={styles.cancelBtn}>
+            <Text style={styles.cancelText}>Cancel</Text>
+          </Pressable>
+        </View>
+      </SafeAreaView>
+    );
+  }
+
+  // ── Chat ready ────────────────────────────────────────────────────────────────
   const isEmpty = messages.length === 0;
 
   return (
@@ -112,21 +217,8 @@ export default function CoachChat() {
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
         keyboardVerticalOffset={Platform.OS === 'ios' ? 90 : 0}
       >
-        {/* Header */}
-        <View style={styles.header}>
-          <Pressable onPress={() => router.back()} style={styles.backBtn}>
-            <Text style={styles.backText}>‹</Text>
-          </Pressable>
-          <View style={{ flex: 1 }}>
-            <Text style={styles.headerTitle}>Coach</Text>
-            <Text style={styles.headerSub} numberOfLines={1}>
-              {active.profile.basics?.name ?? 'Athlete'} · {active.config?.type ?? 'program'}
-            </Text>
-          </View>
-          <View style={styles.statusDot} />
-        </View>
+        {header}
 
-        {/* Messages */}
         <ScrollView
           ref={scrollRef}
           style={{ flex: 1 }}
@@ -137,7 +229,7 @@ export default function CoachChat() {
             <View style={styles.emptyState}>
               <Text style={styles.emptyTitle}>Ask your coach anything</Text>
               <Text style={styles.emptySub}>
-                Your recent training data is already loaded — ask about stalls, fatigue, nutrition or technique.
+                Your recent training data is loaded — ask about stalls, fatigue, nutrition or technique.
               </Text>
               <View style={styles.suggestions}>
                 {PLACEHOLDER_PROMPTS.map((p) => (
@@ -153,9 +245,7 @@ export default function CoachChat() {
                 key={i}
                 style={[styles.bubble, msg.role === 'user' ? styles.bubbleUser : styles.bubbleCoach]}
               >
-                {msg.role === 'assistant' && (
-                  <Text style={styles.bubbleLabel}>COACH</Text>
-                )}
+                {msg.role === 'assistant' && <Text style={styles.bubbleLabel}>COACH</Text>}
                 <Text style={msg.role === 'user' ? styles.bubbleTextUser : styles.bubbleTextCoach}>
                   {msg.content}
                 </Text>
@@ -171,7 +261,6 @@ export default function CoachChat() {
           )}
         </ScrollView>
 
-        {/* Input */}
         <View style={styles.inputRow}>
           <TextInput
             style={styles.input}
@@ -210,32 +299,50 @@ const makeStyles = (c: Palette) =>
       borderColor: c.border,
       backgroundColor: c.bg,
     },
-    backBtn: {
-      width: 40,
-      height: 40,
-      alignItems: 'center',
-      justifyContent: 'center',
-    },
+    backBtn: { width: 40, height: 40, alignItems: 'center', justifyContent: 'center' },
     backText: { color: c.accent, fontSize: 28, lineHeight: 30 },
     headerTitle: { color: c.text, fontWeight: '800', fontSize: 16 },
     headerSub: { color: c.textMuted, fontSize: 12, marginTop: 1 },
-    statusDot: {
-      width: 8,
-      height: 8,
-      borderRadius: 4,
-      backgroundColor: c.success,
+    statusDot: { width: 8, height: 8, borderRadius: 4, backgroundColor: c.success },
+    statusDotOff: { backgroundColor: c.border },
+    centred: {
+      flex: 1,
+      alignItems: 'center',
+      justifyContent: 'center',
+      padding: spacing.lg,
+      gap: spacing.md,
     },
-    msgList: { padding: spacing.md, gap: spacing.sm },
-    msgListEmpty: { flex: 1 },
-    emptyState: { flex: 1, justifyContent: 'center', gap: spacing.md, paddingVertical: spacing.xl },
     emptyTitle: { color: c.text, fontSize: 20, fontWeight: '800', textAlign: 'center' },
     emptySub: {
       color: c.textMuted,
       fontSize: 14,
       lineHeight: 20,
       textAlign: 'center',
-      paddingHorizontal: spacing.lg,
+      maxWidth: 300,
     },
+    downloadBtn: {
+      backgroundColor: c.accent,
+      borderRadius: radius.pill,
+      paddingVertical: spacing.md,
+      paddingHorizontal: spacing.xl,
+      marginTop: spacing.sm,
+      ...shadow.glow,
+    },
+    downloadBtnText: { color: c.onAccent, fontWeight: '800', fontSize: 16 },
+    progressTrack: {
+      width: '100%',
+      height: 6,
+      backgroundColor: c.surface,
+      borderRadius: radius.pill,
+      overflow: 'hidden',
+      marginTop: spacing.sm,
+    },
+    progressFill: { height: '100%', backgroundColor: c.accent, borderRadius: radius.pill },
+    cancelBtn: { marginTop: spacing.sm, padding: spacing.sm },
+    cancelText: { color: c.textMuted, fontSize: 14 },
+    msgList: { padding: spacing.md, gap: spacing.sm },
+    msgListEmpty: { flex: 1 },
+    emptyState: { flex: 1, justifyContent: 'center', gap: spacing.md, paddingVertical: spacing.xl },
     suggestions: { gap: spacing.sm, marginTop: spacing.sm },
     chip: {
       backgroundColor: c.surface,

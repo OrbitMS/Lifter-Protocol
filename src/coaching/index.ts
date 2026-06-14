@@ -1,44 +1,26 @@
-import Constants from 'expo-constants';
 import { stubCoach, type CoachingClient } from '@/engine/coaching';
-import { useSettingsStore } from '@/store/useSettingsStore';
-import { createProxyCoach } from './proxyClient';
+import { isModelDownloaded } from '@/lib/modelManager';
+import { llamaCoach } from './llamaClient';
 
-export * from './models';
-export { createProxyCoach } from './proxyClient';
-export { createAnthropicCoach } from './anthropicClient';
-
-/**
- * Returns a usable coach URL or undefined. A localhost URL is fine in dev but
- * unreachable from a shipped build, so it's ignored outside development — this
- * prevents the app.json dev default from silently breaking coaching on-device.
- */
-function usableUrl(raw?: string): string | undefined {
-  const url = raw?.trim();
-  if (!url) return undefined;
-  if (!__DEV__ && /^(https?:\/\/)?(localhost|127\.0\.0\.1|10\.0\.2\.2)\b/i.test(url)) {
-    return undefined;
-  }
-  return url;
-}
-
-function resolveUrl(): string | undefined {
-  return (
-    usableUrl(useSettingsStore.getState().coachApiUrl) ||
-    usableUrl(Constants.expoConfig?.extra?.coachApiUrl as string | undefined)
-  );
-}
+let _coach: CoachingClient = stubCoach;
+let _modelReady = false;
 
 /**
- * The coach the app should use. Prefers the Settings override URL, then the
- * app.json default; falls back to the offline stub when neither is usable. Read
- * fresh each call so a Settings change takes effect without a reload.
+ * Call once on app start (async, fast — just a file-existence check).
+ * If the model is already on disk the llama client is activated immediately.
+ * Call again after a successful download to activate without restarting.
  */
+export async function initCoach(): Promise<void> {
+  _modelReady = await isModelDownloaded();
+  _coach = _modelReady ? llamaCoach : stubCoach;
+}
+
+/** The active coach. Returns the offline stub until the model is downloaded. */
 export function getCoach(): CoachingClient {
-  const url = resolveUrl();
-  return url ? createProxyCoach(url) : stubCoach;
+  return _coach;
 }
 
-/** Whether the AI coach is reachable (a usable URL is configured). */
+/** True once the GGUF model file is present on disk. */
 export function coachIsOnline(): boolean {
-  return resolveUrl() !== undefined;
+  return _modelReady;
 }

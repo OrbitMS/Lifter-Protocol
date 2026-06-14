@@ -6,6 +6,7 @@ import { LogBox } from 'react-native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { useTheme } from '@/lib/useTheme';
 import { initDB } from '@/lib/db';
+import { initCoach } from '@/coaching';
 import { useLogStore } from '@/store/useLogStore';
 
 // Open the SQLite database and create tables synchronously at module load.
@@ -15,10 +16,11 @@ initDB();
 // internals (not our code) so it doesn't drown out real warnings.
 LogBox.ignoreLogs(['props.pointerEvents is deprecated']);
 
-/** Hydrate the log store from SQLite once on mount (includes AsyncStorage migration). */
+/** Hydrate the log store from SQLite and activate the local coach model on mount. */
 function useDBInit() {
   useEffect(() => {
     useLogStore.getState().init();
+    initCoach();
   }, []);
 }
 

@@ -51,7 +51,6 @@
       "typedRoutes": true
     },
     "extra": {
-      "coachApiUrl": "http://localhost:8787",
       "router": {
         "origin": false
       },

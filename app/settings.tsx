@@ -30,8 +30,6 @@ export default function Settings() {
   const router = useRouter();
   const units = useSettingsStore((s) => s.units);
   const setUnits = useSettingsStore((s) => s.setUnits);
-  const coachApiUrl = useSettingsStore((s) => s.coachApiUrl);
-  const setCoachApiUrl = useSettingsStore((s) => s.setCoachApiUrl);
   const coachOnline = coachIsOnline();
 
   const [showExport, setShowExport] = useState(false);
@@ -43,7 +41,7 @@ export default function Settings() {
         profiles: useProfileStore.getState().profiles,
         activeId: useProfileStore.getState().activeId,
         logs: useLogStore.getState().logs,
-        settings: { units, coachApiUrl },
+        settings: { units },
       },
       null,
       2,
@@ -97,19 +95,15 @@ export default function Settings() {
       </View>
 
       <View style={{ gap: spacing.sm }}>
-        <Label>Coach backend URL</Label>
-        <Field
-          value={coachApiUrl}
-          onChangeText={setCoachApiUrl}
-          placeholder="https://your-coach-proxy.example.com"
-          autoCapitalize="none"
-          autoCorrect={false}
-        />
+        <Label>AI Coach</Label>
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.sm }}>
           <View style={[styles.statusDot, { backgroundColor: coachOnline ? c.success : c.textMuted }]} />
-          <Subtitle>{coachOnline ? 'AI coach connected' : 'Offline — using built-in cues'}</Subtitle>
+          <Subtitle>
+            {coachOnline
+              ? 'Local model ready — coach runs 100% on device'
+              : 'Model not downloaded — open Coach to download (~935 MB)'}
+          </Subtitle>
         </View>
-        <Subtitle>Override the coach proxy URL. Leave blank to use the app default. A localhost URL only works while developing — shipped builds fall back to offline cues.</Subtitle>
       </View>
 
       <View style={{ gap: spacing.sm }}>

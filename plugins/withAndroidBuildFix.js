@@ -1,32 +1,52 @@
-// Upgrades Android Gradle Plugin to 8.9.1 and compileSdk to 36.
+// Fixes CameraX version incompatibility for react-native-vision-camera v5.
 //
-// react-native-vision-camera v5 pulls in androidx.camera:*:1.7.0-alpha01
-// which requires AGP >= 8.9.1 and compileSdk >= 36.
-// Expo SDK 52's default managed workflow uses AGP 8.6.0 / compileSdk 35,
-// so without this plugin the Gradle build fails with:
-//   "Dependency ... requires Android Gradle plugin 8.9.1 or higher."
-const { withProjectBuildGradle, withAppBuildGradle } = require('@expo/config-plugins');
+// VisionCamera v5 hardcodes camerax_version = "1.7.0-alpha01" in its build.gradle.
+// CameraX 1.7.0-alpha01 declares it requires Android Gradle Plugin 8.9.1+ and
+// compileSdk 36+. Expo SDK 52 / React Native 0.76 pins AGP to 8.6.0.
+//
+// Fix: force all androidx.camera artifacts to 1.4.2 via a Gradle resolution
+// strategy on :app. VisionCamera v5's Java/Kotlin source uses only stable CameraX
+// APIs present since 1.3.x — it lists 1.7.0-alpha01 as a build.gradle dependency
+// but does not use any 1.7-exclusive APIs, so downgrading at the resolution layer
+// is safe and the compilation succeeds.
+const { withAppBuildGradle } = require('@expo/config-plugins');
+
+const CAMERAX_VERSION = '1.4.2';
+
+const CAMERAX_ARTIFACTS = [
+  'camera-core',
+  'camera-camera2',
+  'camera-camera2-pipe',
+  'camera-lifecycle',
+  'camera-video',
+  'camera-view',
+  'camera-extensions',
+];
+
+function buildResolutionBlock() {
+  const forces = CAMERAX_ARTIFACTS
+    .map((a) => `        force "androidx.camera:${a}:${CAMERAX_VERSION}"`)
+    .join('\n');
+  return `
+// Force CameraX to ${CAMERAX_VERSION} — vision-camera v5 pulls in 1.7.0-alpha01
+// which requires AGP 8.9.1, but Expo SDK 52 ships AGP 8.6.0. VisionCamera v5
+// only uses stable CameraX APIs available since 1.3.x so the downgrade is safe.
+configurations.all {
+    resolutionStrategy {
+${forces}
+    }
+}
+`;
+}
 
 function withAndroidBuildFix(config) {
-  // 1. Bump AGP classpath in root build.gradle
-  config = withProjectBuildGradle(config, (cfg) => {
-    cfg.modResults.contents = cfg.modResults.contents.replace(
-      /classpath\s*\(?["']com\.android\.tools\.build:gradle:[^"']+["']\)?/g,
-      `classpath("com.android.tools.build:gradle:8.9.1")`,
-    );
-    return cfg;
-  });
-
-  // 2. Bump compileSdkVersion and targetSdkVersion in app/build.gradle
   config = withAppBuildGradle(config, (cfg) => {
-    cfg.modResults.contents = cfg.modResults.contents
-      .replace(/compileSdkVersion\s+\d+/, 'compileSdkVersion 36')
-      .replace(/compileSdk\s+\d+/, 'compileSdk 36')
-      .replace(/targetSdkVersion\s+\d+/, 'targetSdkVersion 36')
-      .replace(/targetSdk\s+\d+/, 'targetSdk 36');
+    const block = buildResolutionBlock();
+    if (!cfg.modResults.contents.includes('force "androidx.camera:camera-core:')) {
+      cfg.modResults.contents += block;
+    }
     return cfg;
   });
-
   return config;
 }
 

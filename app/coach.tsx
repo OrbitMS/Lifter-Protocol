@@ -3,7 +3,6 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   KeyboardAvoidingView,
-  Platform,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -16,7 +15,12 @@ import { getCoach, initCoach } from '@/coaching';
 import { radius, shadow, spacing, type Palette } from '@/constants/theme';
 import { athleteSummary, chatSystemPrompt, type ChatMessage } from '@/engine/coaching';
 import { summarizeTraining, summarizeTechnique } from '@/lib/trainingSummary';
-import { dbGetRecentTechnique } from '@/lib/db';
+import {
+  dbGetLatestCheckin,
+  dbGetRecentTechnique,
+  dbUpsertCheckin,
+  type DailyCheckin,
+} from '@/lib/db';
 import { flattenDays } from '@/lib/days';
 import { useTheme, useThemedStyles } from '@/lib/useTheme';
 import {
@@ -25,8 +29,15 @@ import {
   MODEL_SIZE_MB,
   type DownloadProgress,
 } from '@/lib/modelManager';
+import {
+  detectExercise,
+  exercisesInProgram,
+  formatCheckin,
+  formatRecentSessions,
+} from '@/lib/ragUtils';
 import { useActiveProfile } from '@/store/useProfileStore';
 import { useLogStore } from '@/store/useLogStore';
+import { useSettingsStore } from '@/store/useSettingsStore';
 
 const PLACEHOLDER_PROMPTS = [
   'Why is my bench stalling?',
@@ -35,7 +46,14 @@ const PLACEHOLDER_PROMPTS = [
   'Am I recovering well enough to push harder?',
 ];
 
+const SLEEP_OPTIONS = [5, 6, 7, 8, 9] as const;
+const SORENESS_LABELS = ['', '1 — fine', '2 — mild', '3 — moderate', '4 — heavy', '5 — very sore'];
+
 type ScreenState = 'checking' | 'needs-download' | 'downloading' | 'ready';
+
+function todayISO() {
+  return new Date().toISOString().slice(0, 10);
+}
 
 export default function CoachChat() {
   const router = useRouter();
@@ -45,12 +63,17 @@ export default function CoachChat() {
   const active = useActiveProfile();
   const profileId = active?.id ?? '';
   const logsForProfile = useLogStore((s) => s.logsForProfile);
+  const units = useSettingsStore((s) => s.units);
 
+  // ── Model download gate ───────────────────────────────────────────────────────
   const [screen, setScreen] = useState<ScreenState>('checking');
-  const [dlProgress, setDlProgress] = useState<DownloadProgress>({ bytesDownloaded: 0, bytesTotal: 0, fraction: 0 });
+  const [dlProgress, setDlProgress] = useState<DownloadProgress>({
+    bytesDownloaded: 0,
+    bytesTotal: 0,
+    fraction: 0,
+  });
   const downloadRef = useRef<ReturnType<typeof createModelDownload> | null>(null);
 
-  // Check model presence on mount
   useEffect(() => {
     isModelDownloaded().then((ready) => setScreen(ready ? 'ready' : 'needs-download'));
   }, []);
@@ -61,7 +84,7 @@ export default function CoachChat() {
     downloadRef.current = dl;
     try {
       await dl.downloadAsync();
-      await initCoach(); // re-activate coach now that model is on disk
+      await initCoach();
       setScreen('ready');
     } catch {
       setScreen('needs-download');
@@ -73,7 +96,7 @@ export default function CoachChat() {
     setScreen('needs-download');
   }, []);
 
-  // Build the system prompt once the chat is ready
+  // ── Static system prompt (built once per session/profile) ────────────────────
   const systemPrompt = useMemo(() => {
     if (!active || screen !== 'ready') return '';
     const profileLine = athleteSummary(active.profile, active.config?.type);
@@ -89,6 +112,50 @@ export default function CoachChat() {
     return chatSystemPrompt({ profileLine, cycleLine, trainingSummary, techniqueSummary });
   }, [active, profileId, logsForProfile, screen]);
 
+  // ── Exercise names from program — used for per-message RAG detection ──────────
+  const knownExercises = useMemo(
+    () => exercisesInProgram(active?.program),
+    [active?.program],
+  );
+
+  // ── Daily check-in state ──────────────────────────────────────────────────────
+  const [checkin, setCheckin] = useState<DailyCheckin | null>(null);
+  const [ciExpanded, setCiExpanded] = useState(false);
+  const [ciSleep, setCiSleep] = useState<number | null>(null);
+  const [ciSoreness, setCiSoreness] = useState<number | null>(null);
+
+  useEffect(() => {
+    if (screen === 'ready' && profileId) setCheckin(dbGetLatestCheckin(profileId));
+  }, [screen, profileId]);
+
+  const openCheckin = useCallback(() => {
+    // Pre-fill if today's check-in exists
+    if (checkin && checkin.date === todayISO()) {
+      setCiSleep(checkin.sleep_hours);
+      setCiSoreness(checkin.soreness);
+    } else {
+      setCiSleep(null);
+      setCiSoreness(null);
+    }
+    setCiExpanded(true);
+  }, [checkin]);
+
+  const saveCheckin = useCallback(() => {
+    if (ciSleep === null || ciSoreness === null || !profileId) return;
+    const today = todayISO();
+    const row: DailyCheckin = {
+      id: `ci-${profileId}-${today}`,
+      profile_id: profileId,
+      date: today,
+      sleep_hours: ciSleep,
+      soreness: ciSoreness,
+    };
+    dbUpsertCheckin(row);
+    setCheckin(row);
+    setCiExpanded(false);
+  }, [ciSleep, ciSoreness, profileId]);
+
+  // ── Chat state ────────────────────────────────────────────────────────────────
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [input, setInput] = useState('');
   const [loading, setLoading] = useState(false);
@@ -98,10 +165,32 @@ export default function CoachChat() {
     setTimeout(() => scrollRef.current?.scrollToEnd({ animated: true }), 80);
   }, [messages, loading]);
 
+  // ── Send — enriches system prompt per-message with RAG context ─────────────
   const send = useCallback(
     async (text: string) => {
       const trimmed = text.trim();
       if (!trimmed || loading || !systemPrompt) return;
+
+      // 1. Exercise RAG: detect which lift the user is asking about, pull last 3 sessions
+      let enriched = systemPrompt;
+      const detected = detectExercise(trimmed, knownExercises);
+      if (detected) {
+        const entries = useLogStore.getState().recentEntriesFor(profileId, detected, 3);
+        if (entries.length > 0) {
+          enriched +=
+            `\n\nFOCUSED CONTEXT — user is asking about ${detected}:\n` +
+            formatRecentSessions(entries, detected, units);
+        }
+      }
+
+      // 2. Check-in context: inject if available (today's or most recent)
+      if (checkin) {
+        enriched += '\n' + formatCheckin({
+          sleepHours: checkin.sleep_hours,
+          soreness: checkin.soreness,
+          date: checkin.date,
+        });
+      }
 
       const userMsg: ChatMessage = { role: 'user', content: trimmed };
       const next = [...messages, userMsg];
@@ -110,21 +199,25 @@ export default function CoachChat() {
       setLoading(true);
 
       try {
-        const reply = await getCoach().chat(systemPrompt, next);
+        const reply = await getCoach().chat(enriched, next);
         setMessages((prev) => [...prev, { role: 'assistant', content: reply }]);
       } catch {
         setMessages((prev) => [
           ...prev,
-          { role: 'assistant', content: 'Something went wrong. The model may still be loading — try again in a moment.' },
+          {
+            role: 'assistant',
+            content:
+              'Something went wrong. The model may still be loading — try again in a moment.',
+          },
         ]);
       } finally {
         setLoading(false);
       }
     },
-    [loading, messages, systemPrompt],
+    [loading, messages, systemPrompt, profileId, knownExercises, units, checkin],
   );
 
-  // ── Shared header ────────────────────────────────────────────────────────────
+  // ── Shared header ─────────────────────────────────────────────────────────────
   const header = (
     <View style={styles.header}>
       <Pressable onPress={() => router.back()} style={styles.backBtn}>
@@ -142,7 +235,76 @@ export default function CoachChat() {
     </View>
   );
 
-  // ── No profile ───────────────────────────────────────────────────────────────
+  // ── Check-in bar (shown between header and chat when model is ready) ──────────
+  const ciIsToday = checkin?.date === todayISO();
+  const checkinBar = screen === 'ready' && (
+    <View style={styles.ciBar}>
+      {!ciExpanded ? (
+        <Pressable onPress={openCheckin} style={styles.ciCollapsed}>
+          {ciIsToday && checkin ? (
+            <>
+              <Text style={styles.ciStatus}>
+                💤 {checkin.sleep_hours}h sleep · 💪 {checkin.soreness}/5 soreness
+              </Text>
+              <Text style={styles.ciUpdate}>Update</Text>
+            </>
+          ) : (
+            <Text style={styles.ciPrompt}>Log how you feel today › (feeds the coach)</Text>
+          )}
+        </Pressable>
+      ) : (
+        <View style={styles.ciForm}>
+          <Text style={styles.ciFormLabel}>Hours of sleep</Text>
+          <View style={styles.ciRow}>
+            {SLEEP_OPTIONS.map((h) => (
+              <Pressable
+                key={h}
+                style={[styles.ciChip, ciSleep === h && styles.ciChipOn]}
+                onPress={() => setCiSleep(h)}
+              >
+                <Text style={[styles.ciChipText, ciSleep === h && styles.ciChipTextOn]}>
+                  {h === 9 ? '9+' : `${h}`}h
+                </Text>
+              </Pressable>
+            ))}
+          </View>
+
+          <Text style={styles.ciFormLabel}>Soreness / fatigue</Text>
+          <View style={styles.ciRow}>
+            {[1, 2, 3, 4, 5].map((s) => (
+              <Pressable
+                key={s}
+                style={[styles.ciChip, styles.ciChipWide, ciSoreness === s && styles.ciChipOn]}
+                onPress={() => setCiSoreness(s)}
+              >
+                <Text style={[styles.ciChipText, ciSoreness === s && styles.ciChipTextOn]}>
+                  {SORENESS_LABELS[s]}
+                </Text>
+              </Pressable>
+            ))}
+          </View>
+
+          <View style={styles.ciActions}>
+            <Pressable onPress={() => setCiExpanded(false)}>
+              <Text style={styles.ciCancel}>Cancel</Text>
+            </Pressable>
+            <Pressable
+              style={[
+                styles.ciSaveBtn,
+                (ciSleep === null || ciSoreness === null) && styles.ciSaveBtnOff,
+              ]}
+              onPress={saveCheckin}
+              disabled={ciSleep === null || ciSoreness === null}
+            >
+              <Text style={styles.ciSaveText}>Save</Text>
+            </Pressable>
+          </View>
+        </View>
+      )}
+    </View>
+  );
+
+  // ── Gate screens ──────────────────────────────────────────────────────────────
   if (!active) {
     return (
       <SafeAreaView style={{ flex: 1, backgroundColor: c.bg }} edges={['bottom']}>
@@ -155,7 +317,6 @@ export default function CoachChat() {
     );
   }
 
-  // ── Checking ─────────────────────────────────────────────────────────────────
   if (screen === 'checking') {
     return (
       <SafeAreaView style={{ flex: 1, backgroundColor: c.bg }} edges={['bottom']}>
@@ -167,7 +328,6 @@ export default function CoachChat() {
     );
   }
 
-  // ── Download needed ───────────────────────────────────────────────────────────
   if (screen === 'needs-download') {
     return (
       <SafeAreaView style={{ flex: 1, backgroundColor: c.bg }} edges={['bottom']}>
@@ -175,7 +335,8 @@ export default function CoachChat() {
         <View style={styles.centred}>
           <Text style={styles.emptyTitle}>Download AI model</Text>
           <Text style={styles.emptySub}>
-            The coach runs 100% on your device — no cloud, no API key. A one-time download is required (~{MODEL_SIZE_MB} MB, use Wi-Fi).
+            The coach runs 100% on your device — no cloud, no API key. A one-time download is
+            required (~{MODEL_SIZE_MB} MB, use Wi-Fi).
           </Text>
           <Pressable style={styles.downloadBtn} onPress={startDownload}>
             <Text style={styles.downloadBtnText}>Download now</Text>
@@ -185,20 +346,21 @@ export default function CoachChat() {
     );
   }
 
-  // ── Downloading ──────────────────────────────────────────────────────────────
   if (screen === 'downloading') {
     const pct = Math.round(dlProgress.fraction * 100);
     const mb = (dlProgress.bytesDownloaded / 1_000_000).toFixed(0);
-    const total = dlProgress.bytesTotal > 0
-      ? (dlProgress.bytesTotal / 1_000_000).toFixed(0)
-      : MODEL_SIZE_MB.toString();
-
+    const total =
+      dlProgress.bytesTotal > 0
+        ? (dlProgress.bytesTotal / 1_000_000).toFixed(0)
+        : MODEL_SIZE_MB.toString();
     return (
       <SafeAreaView style={{ flex: 1, backgroundColor: c.bg }} edges={['bottom']}>
         {header}
         <View style={styles.centred}>
           <Text style={styles.emptyTitle}>Downloading model…</Text>
-          <Text style={styles.emptySub}>{mb} / {total} MB · {pct}%</Text>
+          <Text style={styles.emptySub}>
+            {mb} / {total} MB · {pct}%
+          </Text>
           <View style={styles.progressTrack}>
             <View style={[styles.progressFill, { width: `${pct}%` }]} />
           </View>
@@ -215,12 +377,9 @@ export default function CoachChat() {
 
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: c.bg }} edges={['bottom']}>
-      <KeyboardAvoidingView
-        style={{ flex: 1 }}
-        behavior="padding"
-        keyboardVerticalOffset={8}
-      >
+      <KeyboardAvoidingView style={{ flex: 1 }} behavior="padding" keyboardVerticalOffset={8}>
         {header}
+        {checkinBar}
 
         <ScrollView
           ref={scrollRef}
@@ -232,7 +391,8 @@ export default function CoachChat() {
             <View style={styles.emptyState}>
               <Text style={styles.emptyTitle}>Ask your coach anything</Text>
               <Text style={styles.emptySub}>
-                Your recent training data is loaded — ask about stalls, fatigue, nutrition or technique.
+                Your recent training data is loaded — ask about stalls, fatigue, nutrition or
+                technique.
               </Text>
               <View style={styles.suggestions}>
                 {PLACEHOLDER_PROMPTS.map((p) => (
@@ -246,10 +406,15 @@ export default function CoachChat() {
             messages.map((msg, i) => (
               <View
                 key={i}
-                style={[styles.bubble, msg.role === 'user' ? styles.bubbleUser : styles.bubbleCoach]}
+                style={[
+                  styles.bubble,
+                  msg.role === 'user' ? styles.bubbleUser : styles.bubbleCoach,
+                ]}
               >
                 {msg.role === 'assistant' && <Text style={styles.bubbleLabel}>COACH</Text>}
-                <Text style={msg.role === 'user' ? styles.bubbleTextUser : styles.bubbleTextCoach}>
+                <Text
+                  style={msg.role === 'user' ? styles.bubbleTextUser : styles.bubbleTextCoach}
+                >
                   {msg.content}
                 </Text>
               </View>
@@ -292,6 +457,7 @@ export default function CoachChat() {
 
 const makeStyles = (c: Palette) =>
   StyleSheet.create({
+    // ── Layout ──────────────────────────────────────────────────────────────────
     header: {
       flexDirection: 'row',
       alignItems: 'center',
@@ -308,6 +474,62 @@ const makeStyles = (c: Palette) =>
     headerSub: { color: c.textMuted, fontSize: 12, marginTop: 1 },
     statusDot: { width: 8, height: 8, borderRadius: 4, backgroundColor: c.success },
     statusDotOff: { backgroundColor: c.border },
+
+    // ── Check-in bar ────────────────────────────────────────────────────────────
+    ciBar: {
+      borderBottomWidth: 1,
+      borderColor: c.border,
+      backgroundColor: c.surface,
+    },
+    ciCollapsed: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      paddingHorizontal: spacing.md,
+      paddingVertical: spacing.sm,
+    },
+    ciStatus: { color: c.text, fontSize: 13 },
+    ciUpdate: { color: c.accent, fontSize: 13, fontWeight: '700' },
+    ciPrompt: { color: c.textMuted, fontSize: 13 },
+    ciForm: { padding: spacing.md, gap: spacing.sm },
+    ciFormLabel: {
+      color: c.textMuted,
+      fontSize: 11,
+      fontWeight: '700',
+      letterSpacing: 0.8,
+      textTransform: 'uppercase',
+      marginBottom: 2,
+    },
+    ciRow: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.xs },
+    ciChip: {
+      borderWidth: 1,
+      borderColor: c.border,
+      borderRadius: radius.sm,
+      paddingVertical: 5,
+      paddingHorizontal: spacing.sm,
+    },
+    ciChipWide: { paddingHorizontal: spacing.xs },
+    ciChipOn: { borderColor: c.accent, backgroundColor: c.accentSoft },
+    ciChipText: { color: c.textMuted, fontSize: 13 },
+    ciChipTextOn: { color: c.accent, fontWeight: '700' },
+    ciActions: {
+      flexDirection: 'row',
+      justifyContent: 'flex-end',
+      alignItems: 'center',
+      gap: spacing.md,
+      marginTop: spacing.xs,
+    },
+    ciCancel: { color: c.textMuted, fontSize: 14 },
+    ciSaveBtn: {
+      backgroundColor: c.accent,
+      borderRadius: radius.pill,
+      paddingVertical: 6,
+      paddingHorizontal: spacing.md,
+    },
+    ciSaveBtnOff: { opacity: 0.4 },
+    ciSaveText: { color: c.onAccent, fontWeight: '800', fontSize: 14 },
+
+    // ── Gate screens ────────────────────────────────────────────────────────────
     centred: {
       flex: 1,
       alignItems: 'center',
@@ -343,9 +565,16 @@ const makeStyles = (c: Palette) =>
     progressFill: { height: '100%', backgroundColor: c.accent, borderRadius: radius.pill },
     cancelBtn: { marginTop: spacing.sm, padding: spacing.sm },
     cancelText: { color: c.textMuted, fontSize: 14 },
+
+    // ── Chat ────────────────────────────────────────────────────────────────────
     msgList: { padding: spacing.md, gap: spacing.sm },
     msgListEmpty: { flex: 1 },
-    emptyState: { flex: 1, justifyContent: 'center', gap: spacing.md, paddingVertical: spacing.xl },
+    emptyState: {
+      flex: 1,
+      justifyContent: 'center',
+      gap: spacing.md,
+      paddingVertical: spacing.xl,
+    },
     suggestions: { gap: spacing.sm, marginTop: spacing.sm },
     chip: {
       backgroundColor: c.surface,
@@ -377,7 +606,13 @@ const makeStyles = (c: Palette) =>
       borderBottomLeftRadius: radius.sm,
     },
     loadingBubble: { paddingVertical: spacing.md },
-    bubbleLabel: { color: c.accent, fontSize: 10, fontWeight: '800', letterSpacing: 1, marginBottom: 4 },
+    bubbleLabel: {
+      color: c.accent,
+      fontSize: 10,
+      fontWeight: '800',
+      letterSpacing: 1,
+      marginBottom: 4,
+    },
     bubbleTextUser: { color: c.onAccent, lineHeight: 20 },
     bubbleTextCoach: { color: c.text, lineHeight: 20 },
     inputRow: {

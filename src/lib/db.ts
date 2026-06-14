@@ -35,6 +35,16 @@ export function initDB(): void {
     );
     CREATE INDEX IF NOT EXISTS idx_technique_lookup
       ON technique_sessions (profile_id, exercise_name, date);
+
+    CREATE TABLE IF NOT EXISTS daily_checkins (
+      id           TEXT PRIMARY KEY,
+      profile_id   TEXT NOT NULL,
+      date         TEXT NOT NULL,
+      sleep_hours  REAL NOT NULL,
+      soreness     INTEGER NOT NULL
+    );
+    CREATE INDEX IF NOT EXISTS idx_checkin_lookup
+      ON daily_checkins (profile_id, date);
   `);
 }
 
@@ -79,6 +89,33 @@ export function dbGetTechniqueById(id: string): TechniqueRow | null {
 
 export function dbDeleteTechnique(id: string): void {
   db.runSync('DELETE FROM technique_sessions WHERE id = ?', [id]);
+}
+
+// ─── Daily check-in CRUD ──────────────────────────────────────────────────────
+
+export type DailyCheckin = {
+  id: string;
+  profile_id: string;
+  date: string;        // YYYY-MM-DD
+  sleep_hours: number;
+  soreness: number;    // 1–5
+};
+
+export function dbUpsertCheckin(row: DailyCheckin): void {
+  db.runSync(
+    `INSERT OR REPLACE INTO daily_checkins (id, profile_id, date, sleep_hours, soreness)
+     VALUES (?, ?, ?, ?, ?)`,
+    [row.id, row.profile_id, row.date, row.sleep_hours, row.soreness],
+  );
+}
+
+export function dbGetLatestCheckin(profileId: string): DailyCheckin | null {
+  return (
+    db.getFirstSync<DailyCheckin>(
+      'SELECT * FROM daily_checkins WHERE profile_id = ? ORDER BY date DESC LIMIT 1',
+      [profileId],
+    ) ?? null
+  );
 }
 
 export function dbInsertEntry(

@@ -13,3 +13,6 @@ coverage/
 release-assets/
 *.apk
 *.aab
+# downloaded AI model files — fetched at runtime, not bundled
+*.gguf
+assets/*.tflite

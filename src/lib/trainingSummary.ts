@@ -1,4 +1,5 @@
 import { entryBestE1RM, type ExerciseEntry } from '@/store/useLogStore';
+import type { TechniqueRow } from '@/lib/db';
 
 /**
  * Compact, text summary of recent logged performance for the coach prompt.
@@ -32,4 +33,14 @@ export function summarizeTraining(
   });
 
   return lines.join('\n');
+}
+
+/** Compact text of recent technique sessions for the coach prompt. */
+export function summarizeTechnique(sessions: TechniqueRow[]): string {
+  if (sessions.length === 0) return '';
+  const lines = sessions.slice(0, 3).map((s) => {
+    const d = new Date(s.date).toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
+    return `- ${s.exercise_name} (${d}): ${s.summary}`;
+  });
+  return 'Recent technique analysis:\n' + lines.join('\n');
 }

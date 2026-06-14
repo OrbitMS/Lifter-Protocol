@@ -37,6 +37,7 @@ export function chatSystemPrompt(args: {
   profileLine: string;
   cycleLine?: string;
   trainingSummary?: string;
+  techniqueSummary?: string;
 }): string {
   return [
     CHAT_SYSTEM,
@@ -45,6 +46,7 @@ export function chatSystemPrompt(args: {
     args.trainingSummary
       ? `\nRECENT TRAINING (estimated 1RM trend per lift):\n${args.trainingSummary}`
       : '\nThe athlete has not logged any sets yet.',
+    args.techniqueSummary ? `\n${args.techniqueSummary}` : '',
   ]
     .filter(Boolean)
     .join('\n');

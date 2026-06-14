@@ -15,15 +15,70 @@ type LogRow = {
 export function initDB(): void {
   db.execSync(`
     CREATE TABLE IF NOT EXISTS log_entries (
-      id           TEXT PRIMARY KEY,
-      profile_id   TEXT NOT NULL,
+      id            TEXT PRIMARY KEY,
+      profile_id    TEXT NOT NULL,
       exercise_name TEXT NOT NULL,
-      date         TEXT NOT NULL,
-      sets_json    TEXT NOT NULL
+      date          TEXT NOT NULL,
+      sets_json     TEXT NOT NULL
     );
     CREATE INDEX IF NOT EXISTS idx_entries_lookup
       ON log_entries (profile_id, exercise_name, date);
+
+    CREATE TABLE IF NOT EXISTS technique_sessions (
+      id             TEXT PRIMARY KEY,
+      profile_id     TEXT NOT NULL,
+      exercise_name  TEXT NOT NULL,
+      date           TEXT NOT NULL,
+      video_path     TEXT NOT NULL,
+      angles_json    TEXT NOT NULL,
+      summary        TEXT NOT NULL
+    );
+    CREATE INDEX IF NOT EXISTS idx_technique_lookup
+      ON technique_sessions (profile_id, exercise_name, date);
   `);
+}
+
+// ─── Technique session CRUD ───────────────────────────────────────────────────
+
+export type TechniqueRow = {
+  id: string;
+  profile_id: string;
+  exercise_name: string;
+  date: string;
+  video_path: string;
+  angles_json: string;
+  summary: string;
+};
+
+export function dbInsertTechnique(row: Omit<TechniqueRow, never>): void {
+  db.runSync(
+    `INSERT OR REPLACE INTO technique_sessions
+     (id, profile_id, exercise_name, date, video_path, angles_json, summary)
+     VALUES (?, ?, ?, ?, ?, ?, ?)`,
+    [row.id, row.profile_id, row.exercise_name, row.date, row.video_path, row.angles_json, row.summary],
+  );
+}
+
+export function dbGetTechniqueSessions(profileId: string, exerciseName: string): TechniqueRow[] {
+  return db.getAllSync<TechniqueRow>(
+    'SELECT * FROM technique_sessions WHERE profile_id = ? AND exercise_name = ? ORDER BY date DESC',
+    [profileId, exerciseName],
+  );
+}
+
+export function dbGetRecentTechnique(profileId: string, limit = 5): TechniqueRow[] {
+  return db.getAllSync<TechniqueRow>(
+    'SELECT * FROM technique_sessions WHERE profile_id = ? ORDER BY date DESC LIMIT ?',
+    [profileId, limit],
+  );
+}
+
+export function dbGetTechniqueById(id: string): TechniqueRow | null {
+  return db.getFirstSync<TechniqueRow>('SELECT * FROM technique_sessions WHERE id = ?', [id]) ?? null;
+}
+
+export function dbDeleteTechnique(id: string): void {
+  db.runSync('DELETE FROM technique_sessions WHERE id = ?', [id]);
 }
 
 export function dbInsertEntry(

@@ -3,7 +3,7 @@
     "name": "Lifter Protocol",
     "slug": "lifter-protocol",
     "scheme": "lifterprotocol",
-    "version": "1.0.7",
+    "version": "1.0.8",
     "runtimeVersion": {
       "policy": "appVersion"
     },
@@ -30,7 +30,8 @@
     },
     "android": {
       "package": "com.orbitms.lifterprotocol",
-      "versionCode": 8,
+      "versionCode": 9,
+      "softwareKeyboardLayoutMode": "resize",
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
         "backgroundColor": "#101317"
@@ -45,7 +46,14 @@
       "expo-router",
       "expo-asset",
       "expo-font",
-      "expo-sqlite"
+      "expo-sqlite",
+      [
+        "react-native-vision-camera",
+        {
+          "cameraPermissionText": "Lifter Protocol uses the camera to analyse your technique in real time.",
+          "enableMicrophonePermission": false
+        }
+      ]
     ],
     "experiments": {
       "typedRoutes": true

@@ -15,7 +15,8 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { getCoach, initCoach } from '@/coaching';
 import { radius, shadow, spacing, type Palette } from '@/constants/theme';
 import { athleteSummary, chatSystemPrompt, type ChatMessage } from '@/engine/coaching';
-import { summarizeTraining } from '@/lib/trainingSummary';
+import { summarizeTraining, summarizeTechnique } from '@/lib/trainingSummary';
+import { dbGetRecentTechnique } from '@/lib/db';
 import { flattenDays } from '@/lib/days';
 import { useTheme, useThemedStyles } from '@/lib/useTheme';
 import {
@@ -83,7 +84,9 @@ export default function CoachChat() {
       : undefined;
     const logs = logsForProfile(profileId);
     const trainingSummary = summarizeTraining(logs);
-    return chatSystemPrompt({ profileLine, cycleLine, trainingSummary });
+    const recentTechnique = dbGetRecentTechnique(profileId, 5);
+    const techniqueSummary = summarizeTechnique(recentTechnique);
+    return chatSystemPrompt({ profileLine, cycleLine, trainingSummary, techniqueSummary });
   }, [active, profileId, logsForProfile, screen]);
 
   const [messages, setMessages] = useState<ChatMessage[]>([]);
@@ -214,8 +217,8 @@ export default function CoachChat() {
     <SafeAreaView style={{ flex: 1, backgroundColor: c.bg }} edges={['bottom']}>
       <KeyboardAvoidingView
         style={{ flex: 1 }}
-        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-        keyboardVerticalOffset={Platform.OS === 'ios' ? 90 : 0}
+        behavior="padding"
+        keyboardVerticalOffset={8}
       >
         {header}
 

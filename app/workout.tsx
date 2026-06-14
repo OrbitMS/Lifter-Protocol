@@ -187,7 +187,15 @@ export default function Workout() {
     <View style={{ flex: 1, backgroundColor: c.bg }}>
       <Stack.Screen options={{ title: `${day.session.label}`, headerShown: true }} />
       <ScrollView contentContainerStyle={{ padding: spacing.lg, gap: spacing.md }}>
-        <Text style={styles.counter}>Exercise {current + 1} of {exercises.length} · {day.phase}</Text>
+        <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
+          <Text style={styles.counter}>Exercise {current + 1} of {exercises.length} · {day.phase}</Text>
+          <Pressable
+            style={styles.recordLink}
+            onPress={() => router.push({ pathname: '/record', params: { exercise: display(current) } })}
+          >
+            <Text style={styles.recordLinkText}>📹 Record</Text>
+          </Pressable>
+        </View>
         <Title>{display(current)}</Title>
         <Subtitle>
           Target: {ex.sets} × {ex.reps}
@@ -285,6 +293,8 @@ export default function Workout() {
 
 const makeStyles = (c: Palette) => StyleSheet.create({
   counter: { color: c.textMuted, fontSize: 12, fontWeight: '700', letterSpacing: 1, textTransform: 'uppercase' },
+  recordLink: { paddingVertical: 4, paddingHorizontal: spacing.sm },
+  recordLinkText: { color: c.accent, fontSize: 13, fontWeight: '700' },
   section: { color: c.accent, fontSize: 12, fontWeight: '800', letterSpacing: 1 },
   lbl: { color: c.textMuted, fontSize: 13, fontWeight: '600', marginBottom: spacing.xs },
   warmup: {

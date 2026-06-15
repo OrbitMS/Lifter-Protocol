@@ -50,15 +50,35 @@ ${forces}
 `;
 }
 
+// KSP version that matches Kotlin 2.1.0.
+// ExpoModulesCorePlugin's kspVersion map only goes up to "2.0.21": "2.0.21-1.0.28".
+// For Kotlin 2.1.0 it falls back to "1.9.25-1.0.20" which references
+// org.jetbrains.kotlin.incremental.ChangedFiles — removed in KGP 2.x.
+const KSP_VERSION = '2.1.0-1.0.29';
+
 function withAndroidBuildFix(config) {
-  // Fix 1: pin the Kotlin Gradle Plugin classpath to the same version as
-  // ext.kotlinVersion so that expo-modules-core's Compose plugin check works.
   config = withProjectBuildGradle(config, (cfg) => {
-    const OLD = "classpath('org.jetbrains.kotlin:kotlin-gradle-plugin')";
-    const NEW = 'classpath("org.jetbrains.kotlin:kotlin-gradle-plugin:${kotlinVersion}")';
-    if (cfg.modResults.contents.includes(OLD)) {
-      cfg.modResults.contents = cfg.modResults.contents.replace(OLD, NEW);
+    let contents = cfg.modResults.contents;
+
+    // Fix 1: pin the Kotlin Gradle Plugin classpath to the same version as
+    // ext.kotlinVersion so that expo-modules-core's Compose plugin check works.
+    const OLD_KGP = "classpath('org.jetbrains.kotlin:kotlin-gradle-plugin')";
+    const NEW_KGP = 'classpath("org.jetbrains.kotlin:kotlin-gradle-plugin:${kotlinVersion}")';
+    if (contents.includes(OLD_KGP)) {
+      contents = contents.replace(OLD_KGP, NEW_KGP);
     }
+
+    // Fix 3: set kspVersion to match Kotlin 2.1.0.
+    // ExpoModulesCorePlugin reads rootProject.ext.kspVersion; without this it
+    // falls back to "1.9.25-1.0.20" which is incompatible with KGP 2.x.
+    if (!contents.includes('kspVersion =')) {
+      contents = contents.replace(
+        'ndkVersion = "26.1.10909125"',
+        `ndkVersion = "26.1.10909125"\n        kspVersion = "${KSP_VERSION}"`
+      );
+    }
+
+    cfg.modResults.contents = contents;
     return cfg;
   });
 

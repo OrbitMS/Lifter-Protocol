@@ -5,7 +5,7 @@ program is **generated** from an onboarding questionnaire and **auto-regulates**
 week-to-week from logged RPE and recovery check-ins.
 
 - **Engine:** rules-based periodization + RPE auto-regulation (deterministic, tested).
-- **Coaching:** a separate LLM layer for natural-language cues only — it never
+- **SLM:** a separate LLM layer for natural-language cues only — it never
   prescribes loads. Swap `stubCoach` for a real Claude client (`claude-haiku-4-5`
   for cues, `claude-sonnet-4-6` for weekly summaries).
 - **Platform:** React Native + Expo (Expo Router, file-based routing).

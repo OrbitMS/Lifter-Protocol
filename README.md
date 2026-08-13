@@ -84,10 +84,4 @@ npm run coach:server        # serves POST /coach on :8787
 use your machine's LAN IP for a physical device). The reference server in `server/index.ts`
 is intentionally thin — add auth, rate limiting, and per-user quotas before shipping.
 
-## Roadmap
 
-- **Phase 1 (this scaffold):** onboarding, all 3 programs, generation, logging UI.
-- **Phase 2:** RPE auto-regulation, e1RM charts, deload/plateau detection.
-- **Phase 3:** nutrition macro targets, subscription gating (RevenueCat).
-- **Phase 4:** coaching tips, exercise video library, Health sync.
-```
